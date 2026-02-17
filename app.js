@@ -11,16 +11,28 @@ const paymentRoutes = require("./routes/paymentRoutes");
 const expenseRoutes = require("./routes/expenseRoutes");
 const reportRoutes = require("./routes/reportRoutes");
 const dashboardRoutes = require("./routes/dashboardRoutes");
+const morgan = require("morgan");
+const helmet = require("helmet");
+
 
 
 require("dotenv").config();
 
 const app = express();
 
+app.use(helmet());
+app.use(morgan("dev"));
 
 
-app.use(cors());
 app.use(express.json());
+
+
+app.use(cors({
+  origin:["https://anika-frontend.onrender.com","http://localhost:5173"],
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+    credentials:true
+}));
+
 
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);

@@ -111,21 +111,21 @@ exports.getReports = async (req, res) => {
       let startDate;
       let endDate;
 
-      if (year && month && day) {
-        // Specific day
-        startDate = new Date(y, m, d);
-        endDate = new Date(y, m, d, 23, 59, 59);
-      } 
-      else if (year && month) {
-        // Full month
-        startDate = new Date(y, m, 1);
-        endDate = new Date(y, m + 1, 0, 23, 59, 59);
-      } 
-      else {
-        // Full year
-        startDate = new Date(y, 0, 1);
-        endDate = new Date(y, 11, 31, 23, 59, 59);
-      }
+ if (year && month && day) {
+  // Specific day
+  startDate = new Date(y, m, d);
+  endDate = new Date(y, m, d, 23, 59, 59);
+} 
+else if (year && month) {
+  // Full month
+  startDate = new Date(y, m, 1);
+  endDate = new Date(y, m + 1, 0, 23, 59, 59);
+} 
+else {
+  // Full year
+  startDate = new Date(y, 0, 1);
+  endDate = new Date(y, 11, 31, 23, 59, 59);
+}
 
       invoiceFilter.date = { $gte: startDate, $lte: endDate };
 
