@@ -27,10 +27,25 @@ app.use(morgan("dev"));
 app.use(express.json());
 
 
+// app.use(cors({
+//   origin:["http://anika-frontend-1sgfk5snt-pritam-debs-projects-46bcf048.vercel.app","http://localhost:5173"],
+//   methods: ['GET', 'POST', 'PUT', 'DELETE'],
+//     credentials:true
+// }));
 app.use(cors({
-  origin:["anika-frontend-1sgfk5snt-pritam-debs-projects-46bcf048.vercel.app","http://localhost:5173"],
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
-    credentials:true
+  origin: function(origin, callback) {
+    const allowedOrigins = [
+      "http://localhost:5173",
+      "http://anika-frontend-1sgfk5snt-pritam-debs-projects-46bcf048.vercel.app"
+    ];
+
+    if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error("Not allowed by CORS"));
+    }
+  },
+  credentials: true
 }));
 
 
