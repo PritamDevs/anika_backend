@@ -28,7 +28,7 @@ app.use(express.json());
 
 
 app.use(cors({
-  origin:["https://anika-frontend.onrender.com","http://localhost:5173"],
+  origin:["anika-frontend-1sgfk5snt-pritam-debs-projects-46bcf048.vercel.app","http://localhost:5173"],
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
     credentials:true
 }));
