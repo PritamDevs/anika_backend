@@ -28,7 +28,7 @@ app.use(express.json());
 
 
 // app.use(cors({
-//   origin:["http://anika-frontend-1sgfk5snt-pritam-debs-projects-46bcf048.vercel.app","http://localhost:5173"],
+//   origin:["https://anika-frontend-gold.vercel.app","http://localhost:5173"],
 //   methods: ['GET', 'POST', 'PUT', 'DELETE'],
 //     credentials:true
 // }));
@@ -36,7 +36,7 @@ app.use(cors({
   origin: function(origin, callback) {
     const allowedOrigins = [
       "http://localhost:5173",
-      "http://anika-frontend-1sgfk5snt-pritam-debs-projects-46bcf048.vercel.app"
+      "https://anika-frontend-gold.vercel.app"
     ];
 
     if (!origin || allowedOrigins.indexOf(origin) !== -1) {
