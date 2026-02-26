@@ -36,7 +36,8 @@ const totalPaid = Number(paid) || 0;
 // 📄 GET ALL CUSTOMERS
 exports.getAllCustomers = async (req, res) => {
   try {
-    const customers = await Customer.find().sort({ createdAt: -1 });
+   const customers = await Customer.find({ isActive: true })
+  .sort({ createdAt: -1 });
     res.json(customers);
   } catch (error) {
     console.error("GET CUSTOMERS ERROR:", error);
@@ -98,13 +99,17 @@ exports.updateCustomer = async (req, res) => {
 // ❌ DELETE CUSTOMER
 exports.deleteCustomer = async (req, res) => {
   try {
-    const customer = await Customer.findByIdAndDelete(req.params.id);
+    const customer = await Customer.findByIdAndUpdate(
+      req.params.id,
+      { isActive: false },
+      { new: true }
+    );
 
     if (!customer) {
       return res.status(404).json({ message: "Customer not found" });
     }
 
-    res.json({ message: "Customer deleted successfully" });
+    res.json({ message: "Customer marked as inactive" });
   } catch (error) {
     console.error("DELETE CUSTOMER ERROR:", error);
     res.status(500).json({ message: "Server error" });

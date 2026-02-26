@@ -144,7 +144,7 @@ else {
     /* ================= FETCH DATA ================= */
 
     const invoices = await Invoice.find(invoiceFilter)
-      .populate("customerId", "name contact address gstin")
+      .populate("customerId", "name contact address gstin  isActive")
       .populate("products.productId", "name rate discount")
       .sort({ createdAt: -1 });
 
@@ -171,13 +171,21 @@ else {
       date: inv.createdAt,
       invoiceNo: inv.invoiceNumber,
 
-      customer: {
-        name: inv.customerId?.name || "N/A",
-        contact: inv.customerId?.contact || "",
-        address: inv.customerId?.address || "",
-        gstin: inv.customerId?.gstin || ""
-      },
-
+     customer: inv.customerId
+  ? {
+      name: inv.customerId.name,
+      contact: inv.customerId.contact || "",
+      address: inv.customerId.address || "",
+      gstin: inv.customerId.gstin || "",
+      isActive: inv.customerId.isActive
+    }
+  : {
+      name: "N/A",
+      contact: "",
+      address: "",
+      gstin: "",
+      isActive: false
+    },
       items: inv.products.map(item => ({
         productName: item.productId?.name || "Product",
         qty: item.qty,

@@ -81,8 +81,18 @@ const totalDueAmount = round2(Math.max(rawDue, 0));
 });
 
 
-    // 5️⃣ Update customer
-    const customer = await Customer.findById(customerId);
+ // 5️⃣ Check customer exists & is active
+const customer = await Customer.findById(customerId);
+
+if (!customer) {
+  return res.status(404).json({ message: "Customer not found" });
+}
+
+if (customer.isActive === false) {
+  return res.status(400).json({
+    message: "Customer is inactive. Cannot create invoice."
+  });
+}
 
 const newTotalPurchase = round2(customer.totalPurchase + total);
 const newTotalPaid = round2(customer.totalPaid + paid);
@@ -154,6 +164,18 @@ exports.updateInvoice = async (req, res) => {
     const oldInvoice = await Invoice.findById(invoiceId);
     if (!oldInvoice) {
       return res.status(404).json({ message: "Invoice not found" });
+    }
+        // 🔒 Check customer exists & is active
+    const customer = await Customer.findById(oldInvoice.customerId);
+
+    if (!customer) {
+      return res.status(404).json({ message: "Customer not found" });
+    }
+
+    if (customer.isActive === false) {
+      return res.status(400).json({
+        message: "Cannot update invoice. Customer is inactive."
+      });
     }
 
     // 1️⃣ Revert old customer data
