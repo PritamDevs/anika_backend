@@ -36,7 +36,7 @@ app.use(cors({
   origin: function(origin, callback) {
     const allowedOrigins = [
       "http://localhost:5173",
-      "https://anika-frontend-gold.vercel.app"
+      "https://anikaenterprise.in"
     ];
 
     if (!origin || allowedOrigins.indexOf(origin) !== -1) {
