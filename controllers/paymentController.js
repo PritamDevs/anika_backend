@@ -99,6 +99,8 @@ exports.addPayment = async (req, res) => {
       date
     } = req.body;
 
+    console.log("ADD PAYMENT BODY:", req.body);
+
     if (!customerId || !invoiceId || !amount || !type || !paymentMode) {
       return res.status(400).json({ message: "Required fields missing" });
     }
@@ -111,9 +113,37 @@ exports.addPayment = async (req, res) => {
       type,
       paymentMode,
       reference,
-      date
+      date : new Date(date)  
     });
 
+    if (type === "payment") {
+      // Update invoice
+      if (invoiceId) {
+        await Invoice.findByIdAndUpdate(invoiceId, {
+          $inc: { paidAmount: amount, totalDueAmount: -amount }
+        });
+      }
+
+      // Update customer
+      await Customer.findByIdAndUpdate(customerId, {
+        $inc: { totalPaid: amount, dueAmount: -amount }
+      });
+    }
+
+    
+    if (type === "return") {
+      // Reduce invoice amount
+      if (invoiceId) {
+        await Invoice.findByIdAndUpdate(invoiceId, {
+          $inc: { totalAmount: -amount, totalDueAmount: -amount }
+        });
+      }
+
+      // Reduce customer purchase + due
+      await Customer.findByIdAndUpdate(customerId, {
+        $inc: { totalPurchase: -amount, dueAmount: -amount }
+      });
+    }
     res.status(201).json(payment);
   } catch (error) {
     console.log(error);

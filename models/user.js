@@ -1,44 +1,9 @@
-// const mongoose = require("mongoose");
 
-// const userSchema = new mongoose.Schema({
-//   name: {
-//     type: String,
-//     required: true
-//   },
-//   employeeId: {
-//     type: String,
-//     unique: true,
-//     sparse: true // allows null for admin
-//   },
-//   password: {
-//     type: String,
-//     required: true
-//   },
-//   role: {
-//     type: String,
-//     enum: ["admin", "employee"],
-//     required: true
-//   },
-//   isActive: {
-//     type: Boolean,
-//     default: true
-//   },
-//   createdAt: {
-//     type: Date,
-//     default: Date.now
-//   }
-// });
-
-// module.exports = mongoose.model("user", userSchema);
 const mongoose = require("mongoose");
 
 const userSchema = new mongoose.Schema(
   {
-    name: {
-      type: String,
-      required: true
-    },
-
+    
     // ADMIN
     username: {
       type: String,
@@ -59,11 +24,6 @@ const userSchema = new mongoose.Schema(
       sparse: true
     },
 
-    password: {
-      type: String,
-      required: true
-    },
-
     role: {
       type: String,
       enum: ["admin", "employee"],
@@ -74,7 +34,11 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: true
     },
-
+    password: {
+    type: String,
+    required: true,
+    minlength: 6
+  },
     // FORGOT PASSWORD
     otp: String,
     otpExpiry: Date,

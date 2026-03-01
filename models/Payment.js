@@ -33,7 +33,7 @@ const paymentSchema = new mongoose.Schema(
     reference: String,
     date: {
       type: Date,
-      default: Date.now
+      required: true
     }
   },
   { timestamps: true }

@@ -13,7 +13,7 @@ const reportRoutes = require("./routes/reportRoutes");
 const dashboardRoutes = require("./routes/dashboardRoutes");
 const morgan = require("morgan");
 const helmet = require("helmet");
-
+require("dotenv").config();   
 
 
 require("dotenv").config();

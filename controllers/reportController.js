@@ -2,7 +2,7 @@ const Invoice = require("../models/Invoice");
 const Expense = require("../models/Expense");
 const Customer = require("../models/Customer");
 
-// exports.getReports = async (req, res) => {
+
 //   try {
 //     const { month, year, search } = req.query;
 

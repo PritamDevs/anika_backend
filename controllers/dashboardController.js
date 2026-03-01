@@ -85,6 +85,10 @@ exports.getMonthlySalesChart = async (req, res) => {
       }
     ]);
 
+    if (!sales || sales.length === 0)
+    {
+      return res.status(200).json([]);
+    }
     const months = [
       "Jan", "Feb", "Mar", "Apr", "May", "Jun",
       "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
