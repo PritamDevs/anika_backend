@@ -77,7 +77,7 @@ exports.register = async (req, res) => {
    LOGIN
 ===================== */
 exports.login = async (req, res) => {
-  console.log("Request Body:", req.body); 
+  // console.log("Request Body:", req.body); 
   try {
     const { username, employeeId, password } = req.body;
 
@@ -88,7 +88,7 @@ exports.login = async (req, res) => {
     let user;
 
     const allUsers = await User.find();
-console.log("All Users:", allUsers);
+// console.log("All Users:", allUsers);
 
     if (username) {
       user = await User.findOne({ username, role: "admin" });
