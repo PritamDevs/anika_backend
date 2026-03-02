@@ -35,7 +35,10 @@ exports.getDashboardData = async (req, res) => {
     const outstanding = outstandingAgg[0]?.total || 0;
 
     // 3️⃣ Total Customers
-    const totalCustomers = await Customer.countDocuments();
+    const totalCustomers = await Customer.countDocuments({
+  isActive: true,
+  user: req.user.id
+});
 
     // 4️⃣ Open Invoices (Pending)
     const openInvoices = await Invoice.countDocuments({

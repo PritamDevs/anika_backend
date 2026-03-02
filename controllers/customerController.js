@@ -20,7 +20,8 @@ const totalPaid = Number(paid) || 0;
       address,
       totalPurchase: total,
       totalPaid: totalPaid,
-      dueAmount :Number(Math.max(rawDue, 0).toFixed(2))
+      dueAmount :Number(Math.max(rawDue, 0).toFixed(2)),
+      user: req.user.id
     });
 
     res.status(201).json({
@@ -36,7 +37,10 @@ const totalPaid = Number(paid) || 0;
 // 📄 GET ALL CUSTOMERS
 exports.getAllCustomers = async (req, res) => {
   try {
-   const customers = await Customer.find({ isActive: true })
+   const customers = await Customer.find({
+  isActive: true,
+  user: req.user.id
+})
   .sort({ createdAt: -1 });
     res.json(customers);
   } catch (error) {
