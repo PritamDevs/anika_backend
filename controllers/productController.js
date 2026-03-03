@@ -1,6 +1,6 @@
 const Product = require("../models/Product");
 
-// ➕ Add Product (ADMIN)
+// Add Product (ADMIN)
 exports.addProduct = async (req, res) => {
   try {
     const { name, rate, discount, stockQty, lowStockAlert } = req.body;
@@ -23,7 +23,7 @@ exports.addProduct = async (req, res) => {
   }
 };
 
-// ✏️ UPDATE PRODUCT
+// UPDATE PRODUCT
 exports.updateProduct = async (req, res) => {
   try {
     const { name, rate, discount, stockQty } = req.body;
@@ -41,7 +41,7 @@ exports.updateProduct = async (req, res) => {
 };
 
 
-// 📦 Get All Products
+// Get All Products
 exports.getProducts = async (req, res) => {
   try {
     const products = await Product.find().sort({ createdAt: -1 });
@@ -51,7 +51,7 @@ exports.getProducts = async (req, res) => {
   }
 };
 
-// ✏️ Update Stock
+//  Update Stock
 exports.updateStock = async (req, res) => {
   try {
     const { stockQty } = req.body;
@@ -68,7 +68,7 @@ exports.updateStock = async (req, res) => {
   }
 };
 
-// ❌ DELETE PRODUCT (ADMIN)
+//  DELETE PRODUCT (ADMIN)
 exports.deleteProduct = async (req, res) => {
   try {
     await Product.findByIdAndDelete(req.params.id);
@@ -78,7 +78,7 @@ exports.deleteProduct = async (req, res) => {
   }
 };
 
-// 🚨 LOW STOCK PRODUCTS (DASHBOARD)
+// LOW STOCK PRODUCTS (DASHBOARD)
 exports.lowStockProducts = async (req, res) => {
   try {
     const products = await Product.find({

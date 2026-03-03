@@ -49,17 +49,40 @@ exports.createInvoice = async (req, res) => {
       return res.status(400).json({ message: "Invalid invoice data" });
     }
 
-    // 1️⃣ Generate invoice number
+    // Generate invoice number
     const invoiceNumber = await generateInvoiceNumber();
 
-    // 2️⃣ Reduce product stock
-    for (const item of products) {
-      await Product.findByIdAndUpdate(item.productId, {
-        $inc: { stockQty: -item.qty }
-      });
-    }
+// Validate & Reduce product stock safely
+for (const item of products) {
 
-    // 3️⃣ Calculate due
+  const product = await Product.findById(item.productId);
+
+  if (!product) {
+    return res.status(404).json({
+      message: "Product not found"
+    });
+  }
+
+  // NO STOCK
+  if (product.stockQty <= 0) {
+    return res.status(400).json({
+      message: `${product.name} is out of stock`
+    });
+  }
+
+  // NOT ENOUGH STOCK
+  if (item.qty > product.stockQty) {
+    return res.status(400).json({
+      message: `Only ${product.stockQty} units available for ${product.name}`
+    });
+  }
+
+  // Safe to reduce
+  product.stockQty -= item.qty;
+  await product.save();
+}
+
+    // Calculate due
     const total = round2(totalAmount);
 const paid = round2(paidAmount);
 const previous = round2(previousAmount);
@@ -68,7 +91,7 @@ const rawDue = total + previous - paid;
 const totalDueAmount = round2(Math.max(rawDue, 0));
 
 
-    // 4️⃣ Create invoice
+    // Create invoice
     const invoice = await Invoice.create({
   invoiceNumber,
   customerId,
@@ -81,7 +104,7 @@ const totalDueAmount = round2(Math.max(rawDue, 0));
 });
 
 
- // 5️⃣ Check customer exists & is active
+ // Check customer exists & is active
 const customer = await Customer.findById(customerId);
 
 if (!customer) {
@@ -165,7 +188,7 @@ exports.updateInvoice = async (req, res) => {
     if (!oldInvoice) {
       return res.status(404).json({ message: "Invoice not found" });
     }
-        // 🔒 Check customer exists & is active
+        // Check customer exists & is active
     const customer = await Customer.findById(oldInvoice.customerId);
 
     if (!customer) {
@@ -178,7 +201,7 @@ exports.updateInvoice = async (req, res) => {
       });
     }
 
-    // 1️⃣ Revert old customer data
+    //  Revert old customer data
     await Customer.findByIdAndUpdate(oldInvoice.customerId, {
       $inc: {
         totalPurchase: -oldInvoice.totalAmount,
@@ -187,7 +210,7 @@ exports.updateInvoice = async (req, res) => {
       }
     });
 
-    // 2️⃣ Recalculate due
+    //  Recalculate due
     const total = round2(newData.totalAmount);
 const previous = round2(newData.previousAmount || 0);
 const paid = round2(newData.paidAmount || 0);
@@ -196,7 +219,7 @@ const rawDue = total + previous - paid;
 const totalDueAmount = round2(Math.max(rawDue, 0));
 
 
-    // 3️⃣ Update invoice
+    //  Update invoice
     const updatedInvoice = await Invoice.findByIdAndUpdate(
       invoiceId,
       {
@@ -206,7 +229,7 @@ const totalDueAmount = round2(Math.max(rawDue, 0));
       { new: true }
     );
 
-    // 4️⃣ Apply new customer data
+    //  Apply new customer data
     await Customer.findByIdAndUpdate(updatedInvoice.customerId, {
       $inc: {
         totalPurchase: updatedInvoice.totalAmount,
@@ -237,14 +260,14 @@ exports.deleteInvoice = async (req, res) => {
       return res.status(404).json({ message: "Invoice not found" });
     }
 
-    // 1️⃣ Restore stock
+    //  Restore stock
     for (const item of invoice.products) {
       await Product.findByIdAndUpdate(item.productId, {
         $inc: { stockQty: item.qty }
       });
     }
 
-    // 2️⃣ Restore customer data
+    //  Restore customer data
     const customer = await Customer.findById(invoice.customerId);
 
 const newTotalPurchase = round2(customer.totalPurchase - invoice.totalAmount);
@@ -258,7 +281,7 @@ await Customer.findByIdAndUpdate(invoice.customerId, {
 });
 
 
-    // 3️⃣ Delete invoice
+    //  Delete invoice
     await Invoice.findByIdAndDelete(invoiceId);
 
     res.json({ message: "Invoice deleted successfully" });

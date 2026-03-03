@@ -14,7 +14,7 @@ const paymentSchema = new mongoose.Schema(
     },
     gstin: {
       type: String,
-      default: "",   // ✅ NOT compulsory
+      default: "",   // NOT compulsory
     },
     amount: {
       type: Number,

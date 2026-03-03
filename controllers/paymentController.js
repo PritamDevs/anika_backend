@@ -151,7 +151,7 @@ exports.addPayment = async (req, res) => {
   }
 };
 
-// 📦 Get Payments
+// Get Payments
 exports.getPayments = async (req, res) => {
   try {
     const payments = await Payment.find()
@@ -165,7 +165,7 @@ exports.getPayments = async (req, res) => {
   }
 };
 
-// ✏️ Update Payment
+// Update Payment
 exports.updatePayment = async (req, res) => {
   try {
     const { amount, paymentMode, reference } = req.body;
@@ -184,14 +184,14 @@ exports.updatePayment = async (req, res) => {
     const invoiceId = existingPayment.invoiceId;
     const type = existingPayment.type;
 
-    // 🔹 Update payment
+    // Update payment
     existingPayment.amount = newAmount;
     existingPayment.paymentMode = paymentMode;
     existingPayment.reference = reference;
 
     await existingPayment.save();
 
-    // 🔹 Update invoice
+    // Update invoice
     if (invoiceId) {
       if (type === "payment") {
         await Invoice.findByIdAndUpdate(invoiceId, {
@@ -212,7 +212,7 @@ exports.updatePayment = async (req, res) => {
       }
     }
 
-    // 🔹 Update customer
+    // Update customer
     if (type === "payment") {
       await Customer.findByIdAndUpdate(customerId, {
         $inc: {

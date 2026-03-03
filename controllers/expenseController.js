@@ -1,6 +1,6 @@
 const Expense = require("../models/Expense");
 
-// ➕ Add Expense
+// Add Expense
 exports.addExpense = async (req, res) => {
   try {
     const expense = await Expense.create(req.body);
@@ -10,7 +10,7 @@ exports.addExpense = async (req, res) => {
   }
 };
 
-// 📦 Get Expenses
+// Get Expenses
 exports.getExpenses = async (req, res) => {
   try {
     const expenses = await Expense.find().sort({ date: -1 });
@@ -20,7 +20,7 @@ exports.getExpenses = async (req, res) => {
   }
 };
 
-// ✏️ Update Expense
+// Update Expense
 exports.updateExpense = async (req, res) => {
   try {
     const expense = await Expense.findByIdAndUpdate(
@@ -34,7 +34,7 @@ exports.updateExpense = async (req, res) => {
   }
 };
 
-// ❌ Delete Expense
+//  Delete Expense
 exports.deleteExpense = async (req, res) => {
   try {
     await Expense.findByIdAndDelete(req.params.id);

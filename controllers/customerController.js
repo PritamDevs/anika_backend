@@ -1,6 +1,6 @@
 const Customer = require("../models/Customer");
 
-// ➕ CREATE CUSTOMER
+// CREATE CUSTOMER
 exports.createCustomer = async (req, res) => {
   try {
     const { name, contact, address, totalPurchase, paid } = req.body;
@@ -34,7 +34,7 @@ const totalPaid = Number(paid) || 0;
   }
 };
 
-// 📄 GET ALL CUSTOMERS
+// GET ALL CUSTOMERS
 exports.getAllCustomers = async (req, res) => {
   try {
    const customers = await Customer.find({
@@ -49,8 +49,8 @@ exports.getAllCustomers = async (req, res) => {
   }
 };
 
-// ✏️ UPDATE CUSTOMER
-// ✏️ UPDATE CUSTOMER (FIXED & SAFE)
+// UPDATE CUSTOMER
+// UPDATE CUSTOMER (FIXED & SAFE)
 exports.updateCustomer = async (req, res) => {
   try {
     const { name, contact, address, totalPurchase, paid } = req.body;
@@ -100,7 +100,7 @@ exports.updateCustomer = async (req, res) => {
 };
 
 
-// ❌ DELETE CUSTOMER
+// DELETE CUSTOMER
 exports.deleteCustomer = async (req, res) => {
   try {
     const customer = await Customer.findByIdAndUpdate(
