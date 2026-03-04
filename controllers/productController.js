@@ -26,11 +26,11 @@ exports.addProduct = async (req, res) => {
 // UPDATE PRODUCT
 exports.updateProduct = async (req, res) => {
   try {
-    const { name, rate, discount, stockQty } = req.body;
+    const { name, rate, discount, stockQty,lowStockAlert } = req.body;
 
     const product = await Product.findByIdAndUpdate(
       req.params.id,
-      { name, rate, discount, stockQty },
+      { name, rate, discount, stockQty, lowStockAlert },
       { new: true }
     );
 
