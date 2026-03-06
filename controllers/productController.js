@@ -26,11 +26,24 @@ exports.addProduct = async (req, res) => {
 // UPDATE PRODUCT
 exports.updateProduct = async (req, res) => {
   try {
-    const { name, rate, discount, stockQty,lowStockAlert } = req.body;
+    const { name, rate, discount, stockQty, addStock, lowStockAlert } = req.body;
+
+    let updateData = {
+      name,
+      rate,
+      discount,
+      lowStockAlert
+    };
+
+    if (addStock && addStock > 0) {
+      updateData.$inc = { stockQty: Number(addStock) };
+    } else {
+      updateData.stockQty = stockQty;
+    }
 
     const product = await Product.findByIdAndUpdate(
       req.params.id,
-      { name, rate, discount, stockQty, lowStockAlert },
+      updateData,
       { new: true }
     );
 
@@ -39,8 +52,6 @@ exports.updateProduct = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 };
-
-
 // Get All Products
 exports.getProducts = async (req, res) => {
   try {
