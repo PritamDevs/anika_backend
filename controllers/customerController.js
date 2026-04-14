@@ -103,36 +103,29 @@ exports.getAllCustomers = async (req, res) => {
 exports.updateCustomer = async (req, res) => {
   try {
     const { name, contact, address, totalPurchase, paid } = req.body;
-
     const updates = {};
 
     if (name !== undefined) updates.name = name;
     if (contact !== undefined) updates.contact = contact;
     if (address !== undefined) updates.address = address;
 
-    if (totalPurchase !== undefined) {
-      updates.totalPurchase = Number(totalPurchase);
+    // Single DB fetch instead of two
+    const customer = await Customer.findById(req.params.id);
+    if (!customer) return res.status(404).json({ message: "Customer not found" });
+
+    if (totalPurchase !== undefined) updates.totalPurchase = Number(totalPurchase);
+
+    if (paid !== undefined) {
+      const newPaid = Number(paid);
+      const adjustment = newPaid - customer.totalPaid;
+      updates.totalPaid = newPaid;
+      updates.manualAdjustment = (customer.manualAdjustment || 0) + adjustment;
     }
 
-   if (paid !== undefined) {
-  const customer = await Customer.findById(req.params.id);
-
-  const oldPaid = customer.totalPaid;
-  const newPaid = Number(paid);
-
-  const adjustment = newPaid - oldPaid;
-
-  updates.totalPaid = newPaid;
-  updates.manualAdjustment = (customer.manualAdjustment || 0) + adjustment;
-}
-    // calculate due ONLY if values exist
     if (totalPurchase !== undefined || paid !== undefined) {
-      const customer = await Customer.findById(req.params.id);
-      const finalTotal = totalPurchase ?? customer.totalPurchase;
-      const finalPaid = paid ?? customer.totalPaid;
-
-      const rawDue = finalTotal - finalPaid;
-      updates.dueAmount = Number(Math.max(rawDue, 0).toFixed(2));
+      const finalTotal = totalPurchase !== undefined ? Number(totalPurchase) : customer.totalPurchase;
+      const finalPaid  = paid !== undefined         ? Number(paid)          : customer.totalPaid;
+      updates.dueAmount = Number(Math.max(finalTotal - finalPaid, 0).toFixed(2));
     }
 
     const updatedCustomer = await Customer.findByIdAndUpdate(
@@ -141,19 +134,9 @@ exports.updateCustomer = async (req, res) => {
       { new: true, runValidators: true }
     );
 
-    if (!updatedCustomer) {
-      return res.status(404).json({ message: "Customer not found" });
-    }
+    if (global.io) global.io.to(String(req.user.id)).emit("customerUpdated");
 
-    if (global.io) {
-      global.io.to(String(req.user.id)).emit("customerUpdated");
-    }
-
-    res.json({
-      message: "Customer updated successfully",
-      customer: updatedCustomer
-    });
-    
+    res.json({ message: "Customer updated successfully", customer: updatedCustomer });
   } catch (error) {
     console.error("UPDATE CUSTOMER ERROR:", error);
     res.status(500).json({ message: "Server error" });

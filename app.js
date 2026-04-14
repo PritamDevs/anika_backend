@@ -113,7 +113,7 @@
 //     console.error("MongoDB connection error:", error);
 //   });
 
-
+require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const mongoose = require("mongoose");
@@ -129,7 +129,7 @@ const reportRoutes = require("./routes/reportRoutes");
 const dashboardRoutes = require("./routes/dashboardRoutes");
 const morgan = require("morgan");
 const helmet = require("helmet");
-require("dotenv").config();
+
 
 const http = require("http");
 const { Server } = require("socket.io");
@@ -185,18 +185,10 @@ app.use(morgan("dev"));
 app.use(express.json());
 
 app.use(cors({
-  origin: function (origin, callback) {
-    const allowedOrigins = [
-      "http://localhost:5173",
-      "https://anikaenterprise.in"
-    ];
-
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error("Not allowed by CORS"));
-    }
-  },
+  origin: [
+    "http://localhost:5173",
+    "https://anikaenterprise.in"
+  ],
   credentials: true
 }));
 

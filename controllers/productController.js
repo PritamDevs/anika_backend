@@ -99,11 +99,13 @@ exports.updateStock = async (req, res) => {
       { new: true }
     );
 
-    res.json(product);
+   
 
     if (global.io) {
       global.io.to(String(req.user.id)).emit("stockUpdated");
     }
+
+     res.json(product);
   } catch {
     res.status(500).json({ message: "Server error" });
   }

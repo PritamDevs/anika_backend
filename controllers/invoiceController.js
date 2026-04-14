@@ -183,7 +183,6 @@ exports.createInvoice = async (req, res) => {
       global.io.to(userId).emit("stockUpdated");
       global.io.to(userId).emit("customerUpdated");
       global.io.to(userId).emit("dashboardUpdated");
-      global.io.to(userId).emit("dashboardUpdated");
     }
 
     res.status(201).json({
