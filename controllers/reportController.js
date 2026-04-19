@@ -225,7 +225,9 @@ else {
 
       grandTotal: inv.totalAmount,
       paid: inv.paidAmount || 0,
-      balance: inv.totalDueAmount || 0
+      balance: inv.totalDueAmount || 0,
+      previousAmount : inv.previousAmount || 0 
+      
     }));
 
     console.log("Invoices:", invoices.length);

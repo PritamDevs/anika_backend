@@ -168,7 +168,11 @@ exports.deleteCustomer = async (req, res) => {
 
 exports.getAllCustomersList = async (req, res) => {
   try {
-    const customers = await Customer.find( { user: req.user.id }, "name contact address dueAmount");
+    const customers = await Customer.find(
+      { user: req.user.id, isActive: true },
+      "name contact address dueAmount totalPurchase totalPaid"
+    ).sort({ name: 1 }).collation({ locale: "en", strength: 2 });
+    
     res.json({ customers });
   } catch (error) {
     console.error("GET ALL CUSTOMERS LIST ERROR:", error);
