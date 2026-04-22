@@ -146,7 +146,7 @@ const io = new Server(server, {
   cors: {
     origin: [
       "http://localhost:5173",
-      "https://anikaenterprise.in"
+      "https://anikafrontend.netlify.app"
     ],
     methods: ["GET", "POST"]
   }
@@ -187,7 +187,7 @@ app.use(express.json());
 app.use(cors({
   origin: [
     "http://localhost:5173",
-    "https://anikaenterprise.in"
+    "https://anikafrontend.netlify.app"
   ],
   credentials: true
 }));
