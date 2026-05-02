@@ -128,7 +128,7 @@ else {
 
       invoiceFilter.createdAt = { $gte: startDate, $lte: endDate };
 
-      expenseFilter.createdAt = { $gte: startDate, $lte: endDate };
+      expenseFilter.date = { $gte: startDate, $lte: endDate };
     }
 
     /* ================= SEARCH FILTER ================= */
