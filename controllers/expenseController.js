@@ -13,7 +13,18 @@ exports.addExpense = async (req, res) => {
 // Get Expenses
 exports.getExpenses = async (req, res) => {
   try {
-    const expenses = await Expense.find().sort({ date: -1 });
+    const { year, month } = req.query;
+    let filter = {};
+
+    if (year && month) {
+      const y = Number(year);
+      const m = Number(month) - 1;
+      const startDate = new Date(y, m, 1);
+      const endDate = new Date(y, m + 1, 0, 23, 59, 59);
+      filter.date = { $gte: startDate, $lte: endDate };
+    }
+
+    const expenses = await Expense.find(filter).sort({ date: -1 });
     res.json(expenses);
   } catch (error) {
     res.status(500).json({ message: "Server error" });
