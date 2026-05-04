@@ -16,7 +16,7 @@ const dashboardRoutes = require("./routes/dashboardRoutes");
 const morgan = require("morgan");
 const helmet = require("helmet");
 
-
+const compression = require("compression");
 const http = require("http");
 const { Server } = require("socket.io");
 const jwt = require("jsonwebtoken");
@@ -67,6 +67,7 @@ io.on("connection", (socket) => {
 
 // 🛡️ MIDDLEWARE
 app.use(helmet());
+app.use(compression()); 
 app.use(morgan("dev"));
 app.use(express.json());
 
@@ -112,3 +113,11 @@ mongoose
   .catch((error) => {
     console.error("❌ MongoDB connection error:", error);
   });
+
+process.on("uncaughtException", (err) => {
+  console.error("Uncaught Exception:", err);
+});
+
+process.on("unhandledRejection", (err) => {
+  console.error("Unhandled Rejection:", err);
+});

@@ -54,7 +54,8 @@ exports.getDashboardData = async (req, res) => {
 
     // ✅ Low stock (unchanged)
     const lowStockProducts = await Product.find({
-      $expr: { $lte: ["$stockQty", "$lowStockAlert"] }
+      $expr: { $lte: ["$stockQty", "$lowStockAlert"] },
+      stockQty: { $gte: 0 }
     }).select("name rate discount stockQty");
 
     res.status(200).json({
