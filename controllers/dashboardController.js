@@ -3,125 +3,56 @@ const Customer = require("../models/Customer");
 const Product = require("../models/Product");
 const Payment = require("../models/Payment");
 
+const mongoose = require("mongoose");
 
 exports.getDashboardData = async (req, res) => {
   try {
-    const startOfMonth = new Date();
-    startOfMonth.setDate(1);
-    startOfMonth.setHours(0, 0, 0, 0);
+    const year = parseInt(req.query.year) || new Date().getFullYear();
+    const month = parseInt(req.query.month) || new Date().getMonth() + 1;
 
-// Invoice paid
-const invoicePaidAgg = await Invoice.aggregate([
-  {
-    $match: {
-      createdAt: { $gte: startOfMonth },
-      // createdBy: req.user.id   
-    }
-  },
-  {
-    $group: {
-      _id: null,
-      total: { $sum: "$paidAmount" }
-    }
-  }
-]);
+    const startOfMonth = new Date(year, month - 1, 1);
+    const endOfMonth = new Date(year, month, 0, 23, 59, 59, 999);
 
-// Payments
-const paymentAgg = await Payment.aggregate([
-  {
-    $match: {
-      type: "payment",
-      date: { $gte: startOfMonth },
-      user: req.user.id   
-    }
-  },
-  {
-    $group: {
-      _id: null,
-      total: { $sum: "$amount" }
-    }
-  }
-]);
+    const userId = new mongoose.Types.ObjectId(req.user.id);
 
-// Returns
-const returnAgg = await Payment.aggregate([
-  {
-    $match: {
-      type: "return",
-      date: { $gte: startOfMonth },
-      user: req.user.id   
-    }
-  },
-  {
-    $group: {
-      _id: null,
-      total: { $sum: "$amount" }
-    }
-  }
-]);
+    // ✅ Total Sales this month
+    const salesAgg = await Invoice.aggregate([
+      {
+        $match: {
+          createdAt: { $gte: startOfMonth, $lte: endOfMonth },
+          createdBy: userId
+        }
+      },
+      { $group: { _id: null, total: { $sum: "$totalAmount" } } }
+    ]);
+    const totalSales = salesAgg[0]?.total || 0;
 
-// Customer manual adjustments
-const adjustmentAgg = await Customer.aggregate([
-  {
-    $match: {
-      isActive: true,
-      user: req.user.id   
-    }
-  },
-  {
-    $group: {
-      _id: null,
-      total: { $sum: "$manualAdjustment" }
-    }
-  }
-]);
+    // ✅ Outstanding this month
+    const outstandingAgg = await Invoice.aggregate([
+      {
+        $match: {
+          createdAt: { $gte: startOfMonth, $lte: endOfMonth },
+          createdBy: userId
+        }
+      },
+      { $group: { _id: null, total: { $sum: "$totalDueAmount" } } }
+    ]);
+    const outstanding = outstandingAgg[0]?.total || 0;
 
-const customers = await Customer.find({
-  isActive: true,
-  user: req.user.id
-});
-
-let totalSales = 0;
-let totalPaid = 0;
-let totalDue = 0;
-
-customers.forEach(c => {
-  totalSales += c.totalPurchase || 0;
-  totalPaid += c.totalPaid || 0;
-  totalDue += c.dueAmount || 0;
-});
-
-const outstanding = totalDue;
-    // 2️⃣ Outstanding This Month
-// 2️⃣ Outstanding (CORRECT)
-const outstandingAgg = await Customer.aggregate([
-  {
-    $match: {
-      isActive: true,
-      // user: req.user.id
-    }
-  },
-  {
-    $group: {
-      _id: null,
-      total: { $sum: "$dueAmount" }   
-    }
-  }
-]);
-
-
-    // 3️⃣ Total Customers
+    // ✅ Total Customers (overall, unchanged)
     const totalCustomers = await Customer.countDocuments({
-  isActive: true,
-  user: req.user.id
-});
-
-    // 4️⃣ Open Invoices (Pending)
-   const openInvoices = await Invoice.countDocuments({
-     totalDueAmount: { $gt: 0 },
-     createdBy: req.user.id   // ✅ IMPORTANT
+      isActive: true,
+      user: req.user.id
     });
-    // 5️⃣ Low Stock Products
+
+    // ✅ Open invoices this month
+    const openInvoices = await Invoice.countDocuments({
+      totalDueAmount: { $gt: 0 },
+      createdAt: { $gte: startOfMonth, $lte: endOfMonth },
+      createdBy: req.user.id
+    });
+
+    // ✅ Low stock (unchanged)
     const lowStockProducts = await Product.find({
       $expr: { $lte: ["$stockQty", "$lowStockAlert"] }
     }).select("name rate discount stockQty");
@@ -139,7 +70,6 @@ const outstandingAgg = await Customer.aggregate([
     res.status(500).json({ message: "Server Error" });
   }
 };
-
 exports.getMonthlySalesChart = async (req, res) => {
   try {
     const year = req.query.year || new Date().getFullYear();
