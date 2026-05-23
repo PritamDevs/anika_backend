@@ -39,6 +39,23 @@ exports.getDashboardData = async (req, res) => {
     ]);
     const outstanding = outstandingAgg[0]?.total || 0;
 
+    const totalOutstandingAgg = await Customer.aggregate([
+      {
+        $match: {
+          user: userId,
+          isActive: true
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          total: { $sum: "$dueAmount" }
+        }
+      }
+    ]);
+
+    const totalOutstanding = totalOutstandingAgg[0]?.total || 0;
+
     // ✅ Total Customers (overall, unchanged)
     const totalCustomers = await Customer.countDocuments({
       isActive: true,
@@ -61,6 +78,7 @@ exports.getDashboardData = async (req, res) => {
     res.status(200).json({
       totalSales,
       outstanding,
+      totalOutstanding,
       totalCustomers,
       openInvoices,
       lowStockProducts

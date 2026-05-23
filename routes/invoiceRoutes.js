@@ -28,4 +28,6 @@ router.get("/:id", auth, getInvoiceById);
 router.put("/update/:id", auth, authorize("admin"), updateInvoice);
 router.delete("/delete/:id", auth, authorize("admin"), deleteInvoice);
 
+
+
 module.exports = router;

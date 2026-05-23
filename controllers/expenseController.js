@@ -3,7 +3,13 @@ const Expense = require("../models/Expense");
 // Add Expense
 exports.addExpense = async (req, res) => {
   try {
-    const expense = await Expense.create(req.body);
+    const expense = await Expense.create({
+      ...req.body,
+      createdBy: req.user.id
+    });
+    if (global.io) {
+      global.io.to(String(req.user.id)).emit("dashboardUpdated");
+    }
     res.status(201).json(expense);
   } catch (error) {
     res.status(500).json({ message: "Server error" });
@@ -14,7 +20,9 @@ exports.addExpense = async (req, res) => {
 exports.getExpenses = async (req, res) => {
   try {
     const { year, month } = req.query;
-    let filter = {};
+    let filter = { 
+      createdBy: req.user.id 
+    };
 
     if (year && month) {
       const y = Number(year);
@@ -34,11 +42,18 @@ exports.getExpenses = async (req, res) => {
 // Update Expense
 exports.updateExpense = async (req, res) => {
   try {
-    const expense = await Expense.findByIdAndUpdate(
+    const expense = await Expense.findOneAndUpdate(
+      {
+        _id: req.params.id,
+        createdBy: req.user.id
+      },
       req.params.id,
       req.body,
       { new: true }
     );
+    if (global.io) {
+      global.io.to(String(req.user.id)).emit("dashboardUpdated");
+    }
     res.json(expense);
   } catch (error) {
     res.status(500).json({ message: "Server error" });
@@ -48,7 +63,13 @@ exports.updateExpense = async (req, res) => {
 //  Delete Expense
 exports.deleteExpense = async (req, res) => {
   try {
-    await Expense.findByIdAndDelete(req.params.id);
+    await Expense.findOneAndDelete({
+      _id: req.params.id,
+      createdBy: req.user.id
+    });
+    if (global.io) {
+      global.io.to(String(req.user.id)).emit("dashboardUpdated");
+    }
     res.json({ message: "Expense deleted" });
   } catch (error) {
     res.status(500).json({ message: "Server error" });

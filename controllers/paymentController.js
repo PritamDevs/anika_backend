@@ -1,6 +1,10 @@
 const Payment = require("../models/Payment");
 const Customer = require("../models/Customer");
 const Invoice = require("../models/Invoice");
+const {calculateCustomerBalance} = require("../utils/customerBalance");
+
+const round2 = (value) =>
+  Number(Number(value).toFixed(2));
 
 exports.addTransaction = async (req, res) => {
   try {
@@ -29,15 +33,45 @@ exports.addTransaction = async (req, res) => {
     if (type === "payment") {
       // Update invoice
       if (invoiceId) {
+        const invoice = await Invoice.findById(invoiceId);
+        if (!invoice) {
+          return res.status(404).json({ message: "Invoice not found" });
+        }
+        const newPaid = invoice.paidAmount + Number(amount);
+        const newDue = Math.max(
+          0,
+          invoice.totalAmount - newPaid
+        );       
         await Invoice.findByIdAndUpdate(invoiceId, {
-          $inc: { paidAmount: amount, totalDueAmount: -amount }
+          $set: { paidAmount: newPaid, totalDueAmount: newDue }
         });
       }
 
       // Update customer
-      await Customer.findByIdAndUpdate(customerId, {
-        $inc: { totalPaid: amount, dueAmount: -amount }
-      });
+      const customer =
+        await Customer.findById(customerId);
+
+      const newTotalPaid =
+        round2(
+          customer.totalPaid + Number(amount)
+        );
+
+      const {
+        dueAmount,
+        advanceAmount
+      } = calculateCustomerBalance(
+        customer.totalPurchase,
+        newTotalPaid
+      );
+
+      await Customer.findByIdAndUpdate(
+        customerId,
+        {
+          totalPaid: newTotalPaid,
+          dueAmount,
+          advanceAmount
+        }
+      );
     }
 
     if (type === "return") {
@@ -122,15 +156,45 @@ exports.addPayment = async (req, res) => {
     if (type === "payment") {
       // Update invoice
       if (invoiceId) {
-        await Invoice.findByIdAndUpdate(invoiceId, {
-          $inc: { paidAmount: amount, totalDueAmount: -amount }
+        const invoice = await Invoice.findById(invoiceId);
+        if (!invoice) {
+          return res.status(404).json({ message: "Invoice not found" });
+        }
+        const newPaid = invoice.paidAmount + Number(amount);
+        const newDue = Math.max(
+          0,
+          invoice.totalAmount - newPaid
+        );
+          await Invoice.findByIdAndUpdate(invoiceId, {
+          $set: { paidAmount: newPaid, totalDueAmount: newDue }
         });
       }
 
       // Update customer
-      await Customer.findByIdAndUpdate(customerId, {
-        $inc: { totalPaid: amount, dueAmount: -amount }
-      });
+      const customer =
+        await Customer.findById(customerId);
+
+      const newTotalPaid =
+        round2(
+          customer.totalPaid + Number(amount)
+        );
+
+      const {
+        dueAmount,
+        advanceAmount
+      } = calculateCustomerBalance(
+        customer.totalPurchase,
+        newTotalPaid
+      );
+
+      await Customer.findByIdAndUpdate(
+        customerId,
+        {
+          totalPaid: newTotalPaid,
+          dueAmount,
+          advanceAmount
+        }
+      );
     }
 
     
@@ -220,12 +284,30 @@ exports.updatePayment = async (req, res) => {
 
     // Update customer
     if (type === "payment") {
-      await Customer.findByIdAndUpdate(customerId, {
-        $inc: {
-          totalPaid: difference,
-          dueAmount: -difference
+      const customer =
+        await Customer.findById(customerId);
+
+      const newTotalPaid =
+        round2(
+          customer.totalPaid + Number(difference)
+        );
+
+      const {
+        dueAmount,
+        advanceAmount
+      } = calculateCustomerBalance(
+        customer.totalPurchase,
+        newTotalPaid
+      );
+
+      await Customer.findByIdAndUpdate(
+        customerId,
+        {
+          totalPaid: newTotalPaid,
+          dueAmount,
+          advanceAmount
         }
-      });
+      );
     }
 
     if (type === "return") {

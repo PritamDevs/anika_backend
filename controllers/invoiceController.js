@@ -2,7 +2,7 @@ const Invoice = require("../models/Invoice");
 const Customer = require("../models/Customer");
 const Product = require("../models/Product");
 const round2 = (value) => Number(Number(value).toFixed(2));
-
+const {calculateCustomerBalance} = require("../utils/customerBalance");
 
 /* Generate unique invoice number in format: #AEMM-XXXX */
 
@@ -41,7 +41,8 @@ exports.createInvoice = async (req, res) => {
       customerId,
       products,
       paidAmount = 0,
-      previousAmount = 0
+      previousAmount = 0,
+      advanceUsed = 0
     } = req.body;
 
     if (!customerId || !products || products.length === 0) {
@@ -129,7 +130,9 @@ exports.createInvoice = async (req, res) => {
     const paid = round2(paidAmount);
     const previous = round2(previousAmount);
 
-    const rawDue = total + previous - paid;
+    const adjustedTotal = total - advanceUsed;
+
+    const rawDue = adjustedTotal - paid;
     const totalDueAmount = round2(Math.max(rawDue, 0));
 
     console.log("Invoice created:", {
@@ -154,24 +157,53 @@ exports.createInvoice = async (req, res) => {
     const invoice = await Invoice.create({
       invoiceNumber,
       customerId,
-      customerName: customer.name, 
+      customerName: customer.name,
       products,
       totalAmount: total,
       paidAmount: paid,
       previousAmount: previous,
+      advanceUsed,
       totalDueAmount,
       createdBy: req.user.id
     });
 
-    const newTotalPurchase = round2(customer.totalPurchase + total);
-    const newTotalPaid = round2(customer.totalPaid + paid);
-    const newDue = round2(Math.max(newTotalPurchase - newTotalPaid, 0));
+    const newTotalPurchase =
+      round2(customer.totalPurchase + total);
 
-    await Customer.findByIdAndUpdate(customerId, {
-      totalPurchase: newTotalPurchase,
-      totalPaid: newTotalPaid,
-      dueAmount: newDue
-    });
+    const newTotalPaid =
+      round2(customer.totalPaid + paid);
+
+
+    const currentDue =
+      Number(customer.dueAmount || 0);
+
+    const currentAdvance =
+      Number(customer.advanceAmount || 0);
+
+    const newRunningDue =
+      currentDue +
+      totalDueAmount;
+
+    const remainingAdvance =
+      Math.max(
+        0,
+        currentAdvance - advanceUsed
+      );
+
+    await Customer.findByIdAndUpdate(
+      customerId,
+      {
+        totalPurchase: newTotalPurchase,
+
+        totalPaid: newTotalPaid,
+
+        dueAmount:
+          Math.max(newRunningDue, 0),
+
+        advanceAmount:
+          remainingAdvance
+      }
+    );
 
     const populatedInvoice = await Invoice.findById(invoice._id)
     .populate("customerId", "name contact address")
@@ -237,91 +269,143 @@ exports.getInvoiceById = async (req, res) => {
    UPDATE INVOICE (ADMIN)
 ========================= */
 exports.updateInvoice = async (req, res) => {
+
   try {
+
     const invoiceId = req.params.id;
-    const newData = req.body;
 
-    const oldInvoice = await Invoice.findById(invoiceId);
+    const {
+      products,
+      paidAmount = 0,
+      previousAmount = 0,
+      advanceUsed = 0
+    } = req.body;
+
+    // OLD INVOICE
+    const oldInvoice =
+      await Invoice.findById(invoiceId);
+
     if (!oldInvoice) {
-      return res.status(404).json({ message: "Invoice not found" });
-    }
-        // Check customer exists & is active
-    const customer = await Customer.findById(oldInvoice.customerId);
-
-    if (!customer) {
-      return res.status(404).json({ message: "Customer not found" });
-    }
-
-    if (customer.isActive === false) {
-      return res.status(400).json({
-        message: "Cannot update invoice. Customer is inactive."
+      return res.status(404).json({
+        message: "Invoice not found"
       });
     }
 
-    //  Revert old customer data
-    await Customer.findByIdAndUpdate(oldInvoice.customerId, {
-      $inc: {
-        totalPurchase: -oldInvoice.totalAmount,
-        totalPaid: -(oldInvoice.paidAmount || 0),
-        dueAmount: -oldInvoice.totalDueAmount
+    // CUSTOMER
+    const customer =
+      await Customer.findById(
+        oldInvoice.customerId
+      );
+
+    if (!customer) {
+      return res.status(404).json({
+        message: "Customer not found"
+      });
+    }
+
+    // REMOVE OLD EFFECT
+    const revertedPurchase =
+      round2(
+        customer.totalPurchase -
+        oldInvoice.totalAmount
+      );
+
+    const revertedPaid =
+      round2(
+        customer.totalPaid -
+        oldInvoice.paidAmount
+      );
+
+    // RECALCULATE TOTAL
+    const total =
+      round2(
+        products.reduce(
+          (sum, item) =>
+            sum +
+            (
+              item.qty *
+              item.rate
+            ),
+          0
+        )
+      );
+
+    // NEW DUE
+    const adjustedTotal =
+      total - advanceUsed;
+
+    const rawDue =
+      adjustedTotal - paidAmount;
+
+    const totalDueAmount =
+      round2(
+        Math.max(0, rawDue)
+      );
+
+    // UPDATE INVOICE
+    const updatedInvoice =
+      await Invoice.findByIdAndUpdate(
+        invoiceId,
+        {
+          products,
+          totalAmount: total,
+          paidAmount,
+          previousAmount,
+          advanceUsed,
+          totalDueAmount
+        },
+        { new: true }
+      );
+
+    // APPLY NEW EFFECT
+    const finalPurchase =
+      round2(
+        revertedPurchase + total
+      );
+
+    const finalPaid =
+      round2(
+        revertedPaid + paidAmount
+      );
+
+    // CALCULATE BALANCE
+    const {
+      dueAmount,
+      advanceAmount
+    } = calculateCustomerBalance(
+      finalPurchase,
+      finalPaid
+    );
+
+    // UPDATE CUSTOMER
+    await Customer.findByIdAndUpdate(
+      customer._id,
+      {
+        totalPurchase: finalPurchase,
+        totalPaid: finalPaid,
+        dueAmount,
+        advanceAmount
       }
-    });
-
-    //  Recalculate due
-
-const previous = round2(newData.previousAmount || 0);
-const paid = round2(newData.paidAmount || 0);
-let calculatedTotal = 0;
-
-for (const item of newData.products) {
-  const product = await Product.findById(item.productId);
-
-  if (!product) {
-    return res.status(404).json({ message: "Product not found" });
-  }
-
-  const price = product.rate;
-  const qty = item.qty;
-  const discount = Number(item.discount) || 0;
-
-  const gross = price * qty;
-  const discountAmount = (gross * discount) / 100;
-  const final = gross - discountAmount;
-
-  calculatedTotal += final;
-}
-const total = round2(calculatedTotal);
-const rawDue = total + previous - paid;
-const totalDueAmount = round2(Math.max(rawDue, 0));
-
-
-    //  Update invoice
-const updatedInvoice = await Invoice.findByIdAndUpdate(
-  invoiceId,
-  {
-    ...newData,
-    totalAmount: total,   
-    totalDueAmount
-  },
-  { new: true }
-);
-
-    //  Apply new customer data
-    await Customer.findByIdAndUpdate(updatedInvoice.customerId, {
-      $inc: {
-        totalPurchase: updatedInvoice.totalAmount,
-        totalPaid: updatedInvoice.paidAmount || 0,
-        dueAmount: updatedInvoice.totalDueAmount
-      }
-    });
+    );
 
     res.json({
-      message: "Invoice updated successfully",
+      message:
+        "Invoice updated successfully",
+
       invoice: updatedInvoice
     });
+
   } catch (error) {
-    console.error("UPDATE INVOICE ERROR:", error);
-    res.status(500).json({ message: "Server error" });
+
+    console.error(
+      "UPDATE INVOICE ERROR:",
+      error
+    );
+
+    res.status(500).json({
+      message: "Server error"
+    });
+
   }
 };
 

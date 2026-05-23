@@ -122,10 +122,36 @@ exports.updateCustomer = async (req, res) => {
       updates.manualAdjustment = (customer.manualAdjustment || 0) + adjustment;
     }
 
-    if (totalPurchase !== undefined || paid !== undefined) {
-      const finalTotal = totalPurchase !== undefined ? Number(totalPurchase) : customer.totalPurchase;
-      const finalPaid  = paid !== undefined         ? Number(paid)          : customer.totalPaid;
-      updates.dueAmount = Number(Math.max(finalTotal - finalPaid, 0).toFixed(2));
+    if (
+      totalPurchase !== undefined ||
+      paid !== undefined
+    ) {
+
+      const finalTotal =
+        totalPurchase !== undefined
+          ? Number(totalPurchase)
+          : Number(customer.totalPurchase || 0);
+
+      const finalPaid =
+        paid !== undefined
+          ? Number(paid)
+          : Number(customer.totalPaid || 0);
+
+      const openingDue =
+        Number(customer.manualAdjustment || 0);
+
+      const recalculatedDue =
+        openingDue +
+        finalTotal -
+        finalPaid;
+
+      updates.dueAmount =
+        Math.max(recalculatedDue, 0);
+
+      updates.advanceAmount =
+        recalculatedDue < 0
+          ? Math.abs(recalculatedDue)
+          : 0;
     }
 
     const updatedCustomer = await Customer.findByIdAndUpdate(

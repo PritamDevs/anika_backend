@@ -46,6 +46,10 @@ const invoiceSchema = new mongoose.Schema(
       type: Date,
       default: Date.now
     },
+    advanceUsed: {
+      type: Number,
+      default: 0
+    },
   },
   { timestamps: true }
 );
