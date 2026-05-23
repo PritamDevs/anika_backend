@@ -27,7 +27,7 @@ router.get("/all", auth, getAllCustomersList);
 router.get("/:id/ledger", getCustomerLedger);
 router.post("/:id/recalculate",recalculateCustomerLedger);
 router.put("/:id/previous-due",updatePreviousDue);
-router.post("/:id/recalculate",recalculateCustomerLedger);
+
 
 // ADMIN ONLY (OPTIONAL)
 router.delete("/:id", auth, deleteCustomer);

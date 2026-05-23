@@ -73,7 +73,7 @@ io.on("connection", (socket) => {
 });
 
 // 🛡️ MIDDLEWARE
-app.use(helmet());
+
 app.use(compression()); 
 app.use(morgan("dev"));
 app.use(express.json());
@@ -93,6 +93,7 @@ app.use(cors({
   ],
   credentials: true
 }));
+
 
 // 📌 ROUTES
 app.use("/api/auth", authRoutes);

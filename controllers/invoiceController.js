@@ -2,7 +2,7 @@ const Invoice = require("../models/Invoice");
 const Customer = require("../models/Customer");
 const Product = require("../models/Product");
 const round2 = (value) => Number(Number(value).toFixed(2));
-const {calculateCustomerBalance} = require("../utils/customerBalance");
+// const {calculateCustomerBalance} = require("../utils/customerBalance");
 
 /* Generate unique invoice number in format: #AEMM-XXXX */
 
@@ -174,21 +174,22 @@ exports.createInvoice = async (req, res) => {
       round2(customer.totalPaid + paid);
 
 
-    const currentDue =
-      Number(customer.dueAmount || 0);
-
-    const currentAdvance =
-      Number(customer.advanceAmount || 0);
-
-    const newRunningDue =
-      currentDue +
-      totalDueAmount;
-
-    const remainingAdvance =
-      Math.max(
-        0,
-        currentAdvance - advanceUsed
+    const recalculatedBalance =
+      Number(customer.manualAdjustment || 0) +
+      (
+        newTotalPurchase -
+        newTotalPaid
       );
+
+    const dueAmount =
+      recalculatedBalance > 0
+        ? recalculatedBalance
+        : 0;
+
+    const advanceAmount =
+      recalculatedBalance < 0
+        ? Math.abs(recalculatedBalance)
+        : 0;
 
     await Customer.findByIdAndUpdate(
       customerId,
@@ -197,11 +198,9 @@ exports.createInvoice = async (req, res) => {
 
         totalPaid: newTotalPaid,
 
-        dueAmount:
-          Math.max(newRunningDue, 0),
+        dueAmount,
 
-        advanceAmount:
-          remainingAdvance
+        advanceAmount
       }
     );
 
@@ -369,13 +368,23 @@ exports.updateInvoice = async (req, res) => {
       );
 
     // CALCULATE BALANCE
-    const {
-      dueAmount,
-      advanceAmount
-    } = calculateCustomerBalance(
-      finalPurchase,
-      finalPaid
-    );
+    // CALCULATE BALANCE
+    const recalculatedBalance =
+      Number(customer.manualAdjustment || 0) +
+      (
+        finalPurchase -
+        finalPaid
+      );
+
+    const dueAmount =
+      recalculatedBalance > 0
+        ? recalculatedBalance
+        : 0;
+
+    const advanceAmount =
+      recalculatedBalance < 0
+        ? Math.abs(recalculatedBalance)
+        : 0;
 
     // UPDATE CUSTOMER
     await Customer.findByIdAndUpdate(
@@ -431,15 +440,47 @@ exports.deleteInvoice = async (req, res) => {
     //  Restore customer data
     const customer = await Customer.findById(invoice.customerId);
 
-const newTotalPurchase = round2(customer.totalPurchase - invoice.totalAmount);
-const newTotalPaid = round2(customer.totalPaid - (invoice.paidAmount || 0));
-const newDue = round2(Math.max(newTotalPurchase - newTotalPaid, 0));
+    const newTotalPurchase =
+      round2(
+        customer.totalPurchase -
+        invoice.totalAmount
+      );
 
-await Customer.findByIdAndUpdate(invoice.customerId, {
-  totalPurchase: newTotalPurchase,
-  totalPaid: newTotalPaid,
-  dueAmount: newDue
-});
+    const newTotalPaid =
+      round2(
+        customer.totalPaid -
+        (invoice.paidAmount || 0)
+      );
+
+    const recalculatedBalance =
+      Number(customer.manualAdjustment || 0) +
+      (
+        newTotalPurchase -
+        newTotalPaid
+      );
+
+    const newDue =
+      recalculatedBalance > 0
+        ? recalculatedBalance
+        : 0;
+
+    const newAdvance =
+      recalculatedBalance < 0
+        ? Math.abs(recalculatedBalance)
+        : 0;
+
+    await Customer.findByIdAndUpdate(
+      invoice.customerId,
+      {
+        totalPurchase: newTotalPurchase,
+
+        totalPaid: newTotalPaid,
+
+        dueAmount: newDue,
+
+        advanceAmount: newAdvance
+      }
+    );
 
 
     //  Delete invoice
