@@ -5,10 +5,13 @@ exports.addExpense = async (req, res) => {
   try {
     const expense = await Expense.create({
       ...req.body,
-      createdBy: req.user.id
+
+      date: req.body.date
+        ? new Date(req.body.date)
+        : new Date()
     });
     if (global.io) {
-      global.io.to(String(req.user.id)).emit("dashboardUpdated");
+      global.io.emit("dashboardUpdated");
     }
     res.status(201).json(expense);
   } catch (error) {
@@ -20,15 +23,21 @@ exports.addExpense = async (req, res) => {
 exports.getExpenses = async (req, res) => {
   try {
     const { year, month } = req.query;
-    let filter = { 
-      createdBy: req.user.id 
-    };
+    let filter = {};
 
     if (year && month) {
       const y = Number(year);
       const m = Number(month) - 1;
       const startDate = new Date(y, m, 1);
-      const endDate = new Date(y, m + 1, 0, 23, 59, 59);
+      const endDate = new Date(
+        y,
+        m + 1,
+        0,
+        23,
+        59,
+        59,
+        999
+      );
       filter.date = { $gte: startDate, $lte: endDate };
     }
 
@@ -44,19 +53,21 @@ exports.updateExpense = async (req, res) => {
   try {
     const expense = await Expense.findOneAndUpdate(
       {
-        _id: req.params.id,
-        createdBy: req.user.id
+        _id: req.params.id
       },
-      req.params.id,
       req.body,
       { new: true }
     );
     if (global.io) {
-      global.io.to(String(req.user.id)).emit("dashboardUpdated");
+      global.io.emit("dashboardUpdated");
     }
     res.json(expense);
   } catch (error) {
-    res.status(500).json({ message: "Server error" });
+    console.error(error);
+
+    res.status(500).json({
+      message: error.message
+    });
   }
 };
 
@@ -65,10 +76,9 @@ exports.deleteExpense = async (req, res) => {
   try {
     await Expense.findOneAndDelete({
       _id: req.params.id,
-      createdBy: req.user.id
     });
     if (global.io) {
-      global.io.to(String(req.user.id)).emit("dashboardUpdated");
+      global.io.emit("dashboardUpdated");
     }
     res.json({ message: "Expense deleted" });
   } catch (error) {
