@@ -1,6 +1,6 @@
-const Customer = require("../../anika_backend/models/Customer");
-const Invoice = require("../../anika_backend/models/Invoice");
-const Payment = require("../../anika_backend/models/Payment");
+const Customer = require("../models/Customer");
+const Invoice = require("../models/Invoice");
+const Payment = require("../models/Payment");
 
 const buildCustomerLedger = async (customerId) => {
 
