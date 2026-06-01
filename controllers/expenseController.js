@@ -1,8 +1,9 @@
 const Expense = require("../models/Expense");
+const asyncHandler = require("../utils/asyncHandler");
+const AppError = require("../utils/AppError");
 
 // Add Expense
-exports.addExpense = async (req, res) => {
-  try {
+exports.addExpense = asyncHandler(async (req, res) => {
     const expense = await Expense.create({
       ...req.body,
 
@@ -14,14 +15,10 @@ exports.addExpense = async (req, res) => {
       global.io.emit("dashboardUpdated");
     }
     res.status(201).json(expense);
-  } catch (error) {
-    res.status(500).json({ message: "Server error" });
-  }
-};
+  });
 
 // Get Expenses
-exports.getExpenses = async (req, res) => {
-  try {
+exports.getExpenses = asyncHandler(async (req, res) => {
     const { year, month } = req.query;
     let filter = {};
 
@@ -43,45 +40,52 @@ exports.getExpenses = async (req, res) => {
 
     const expenses = await Expense.find(filter).sort({ date: -1 });
     res.json(expenses);
-  } catch (error) {
-    res.status(500).json({ message: "Server error" });
-  }
-};
+  });
 
 // Update Expense
-exports.updateExpense = async (req, res) => {
-  try {
-    const expense = await Expense.findOneAndUpdate(
+exports.updateExpense = asyncHandler(async (req, res) => {
+
+  const expense =
+    await Expense.findOneAndUpdate(
       {
         _id: req.params.id
       },
       req.body,
-      { new: true }
+      {
+        new: true
+      }
     );
-    if (global.io) {
-      global.io.emit("dashboardUpdated");
-    }
-    res.json(expense);
-  } catch (error) {
-    console.error(error);
 
-    res.status(500).json({
-      message: error.message
-    });
+  if (!expense) {
+    throw new AppError(
+      "Expense not found",
+      404
+    );
   }
-};
+
+  if (global.io) {
+    global.io.emit("dashboardUpdated");
+  }
+
+  res.json(expense);
+
+});
 
 //  Delete Expense
-exports.deleteExpense = async (req, res) => {
-  try {
+exports.deleteExpense = asyncHandler(async (req, res) => {
+
+  const expense =
     await Expense.findOneAndDelete({
-      _id: req.params.id,
+      _id: req.params.id
     });
+  if (!expense) {
+    throw new AppError(
+      "Expense not found",
+      404
+    );
+  }
     if (global.io) {
       global.io.emit("dashboardUpdated");
     }
     res.json({ message: "Expense deleted" });
-  } catch (error) {
-    res.status(500).json({ message: "Server error" });
-  }
-};
+  });

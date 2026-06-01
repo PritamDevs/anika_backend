@@ -1,6 +1,11 @@
 const Invoice = require("../models/Invoice");
 const Customer = require("../models/Customer");
 const Product = require("../models/Product");
+const asyncHandler =require("../utils/asyncHandler");
+const recalcCustomer =require("../utils/recalcCustomer");
+const AppError =require("../utils/AppError");
+
+
 const round2 = (value) => Number(Number(value).toFixed(2));
 // const {calculateCustomerBalance} = require("../utils/customerBalance");
 
@@ -35,19 +40,34 @@ const generateInvoiceNumber = async () => {
 /* =========================
    CREATE INVOICE
 ========================= */
-exports.createInvoice = async (req, res) => {
-  try {
+exports.createInvoice =asyncHandler(async (req, res) => {
     const {
       customerId,
       products,
       paidAmount = 0,
-      previousAmount = 0,
-      advanceUsed = 0
     } = req.body;
 
-    if (!customerId || !products || products.length === 0) {
-      return res.status(400).json({ message: "Invalid invoice data" });
-    }
+  if (Number(paidAmount) < 0) {
+
+    throw new AppError(
+      "Paid amount cannot be negative",
+      400
+    );
+
+  }
+
+  if (
+    !customerId ||
+    !products ||
+    products.length === 0
+  ) {
+
+    throw new AppError(
+      "Invalid invoice data",
+      400
+    );
+
+  }
 
     // Generate invoice number
     const invoiceNumber = await generateInvoiceNumber();
@@ -78,7 +98,10 @@ exports.createInvoice = async (req, res) => {
       const product = productMap[productId];
 
       if (!product) {
-        return res.status(404).json({ message: "Invalid product" });
+        throw new AppError(
+          "Invalid product",
+          404
+        );
       }
 
       console.log("STOCK CHECK:", {
@@ -88,9 +111,12 @@ exports.createInvoice = async (req, res) => {
       });
 
       if (grouped[productId] > product.stockQty) {
-        return res.status(400).json({
-          message: `Only ${product.stockQty} units available for ${product.name}`
-        });
+
+        throw new AppError(
+          `Only ${product.stockQty} units available for ${product.name}`,
+          400
+        );
+
       }
     }
 
@@ -105,9 +131,12 @@ exports.createInvoice = async (req, res) => {
       );
 
       if (!updated) {
-        return res.status(400).json({
-          message: "Stock changed. Please refresh and try again."
-        });
+
+        throw new AppError(
+          "Stock changed. Please refresh and try again.",
+          400
+        );
+
       }
     }
 
@@ -125,34 +154,63 @@ exports.createInvoice = async (req, res) => {
 
       calculatedTotal += final;
     }
-
-    const total = round2(calculatedTotal);
-    const paid = round2(paidAmount);
-    const previous = round2(previousAmount);
-
-    const adjustedTotal = total - advanceUsed;
-
-    const rawDue = adjustedTotal - paid;
-    const totalDueAmount = round2(Math.max(rawDue, 0));
-
-    console.log("Invoice created:", {
-      total,
-      paid,
-      totalDueAmount
-    });
-
     // Check customer exists & is active
-    const customer = await Customer.findById(customerId);
 
-    if (!customer) {
-      return res.status(404).json({ message: "Customer not found" });
-    }
+    const customer =
+      await Customer.findById(customerId);
 
-    if (customer.isActive === false) {
-      return res.status(400).json({
-        message: "Customer is inactive. Cannot create invoice."
-      });
-    }
+  if (!customer) {
+
+    throw new AppError(
+      "Customer not found",
+      404
+    );
+
+  }
+
+  if (customer.isActive === false) {
+
+    throw new AppError(
+      "Customer is inactive. Cannot create invoice.",
+      400
+    );
+
+  }
+
+    const total =
+      round2(calculatedTotal);
+
+    const paid =
+      round2(paidAmount);
+
+    const previous =
+      round2(customer.dueAmount || 0);
+
+    const availableAdvance =
+      round2(customer.advanceAmount || 0);
+
+    const advanceUsed =
+      round2(
+        Math.min(
+          availableAdvance,
+          total
+        )
+      );
+
+    const adjustedTotal =
+      round2(total - advanceUsed);
+
+    const runningBalance =
+      round2(
+        previous +
+        adjustedTotal -
+        paid
+      );
+
+    const totalDueAmount =
+      round2(
+        Math.max(runningBalance, 0)
+      );
 
     const invoice = await Invoice.create({
       invoiceNumber,
@@ -168,45 +226,31 @@ exports.createInvoice = async (req, res) => {
     });
 
     const newTotalPurchase =
-      round2(customer.totalPurchase + total);
-
-    const newTotalPaid =
-      round2(customer.totalPaid + paid);
-
-
-    const recalculatedBalance =
-      Number(customer.manualAdjustment || 0) +
-      (
-        newTotalPurchase -
-        newTotalPaid
+      round2(
+        customer.totalPurchase + total
       );
 
-    const dueAmount =
-      recalculatedBalance > 0
-        ? recalculatedBalance
-        : 0;
+    const newTotalPaid =
+      round2(
+        customer.totalPaid + paid
+      );
 
-    const advanceAmount =
-      recalculatedBalance < 0
-        ? Math.abs(recalculatedBalance)
-        : 0;
+    /*
+Customer balance after invoice
+*/
+  await Customer.findByIdAndUpdate(
+    customerId,
+    {
+      totalPurchase: newTotalPurchase,
+      totalPaid: newTotalPaid
+    }
+  );
 
-    await Customer.findByIdAndUpdate(
-      customerId,
-      {
-        totalPurchase: newTotalPurchase,
-
-        totalPaid: newTotalPaid,
-
-        dueAmount,
-
-        advanceAmount
-      }
-    );
+  await recalcCustomer(customerId);
 
     const populatedInvoice = await Invoice.findById(invoice._id)
-    .populate("customerId", "name contact address")
-    .populate("products.productId", "name rate");
+      .populate("customerId", "name contact address")
+      .populate("products.productId", "name rate");
 
     if (global.io) {
       const userId = String(req.user.id);
@@ -221,11 +265,7 @@ exports.createInvoice = async (req, res) => {
       invoice: populatedInvoice
     });
 
-  } catch (error) {
-    console.error("CREATE INVOICE ERROR:", error);
-    res.status(500).json({ message: error.message});
-  }
-};
+});
 
 /* =========================
    GET ALL INVOICES
@@ -330,15 +370,25 @@ exports.updateInvoice = async (req, res) => {
       );
 
     // NEW DUE
+    // NEW DUE
     const adjustedTotal =
-      total - advanceUsed;
+      round2(
+        total - advanceUsed
+      );
 
-    const rawDue =
-      adjustedTotal - paidAmount;
+    const runningBalance =
+      round2(
+        previousAmount +
+        adjustedTotal -
+        paidAmount
+      );
 
     const totalDueAmount =
       round2(
-        Math.max(0, rawDue)
+        Math.max(
+          runningBalance,
+          0
+        )
       );
 
     // UPDATE INVOICE
@@ -369,33 +419,15 @@ exports.updateInvoice = async (req, res) => {
 
     // CALCULATE BALANCE
     // CALCULATE BALANCE
-    const recalculatedBalance =
-      Number(customer.manualAdjustment || 0) +
-      (
-        finalPurchase -
-        finalPaid
-      );
-
-    const dueAmount =
-      recalculatedBalance > 0
-        ? recalculatedBalance
-        : 0;
-
-    const advanceAmount =
-      recalculatedBalance < 0
-        ? Math.abs(recalculatedBalance)
-        : 0;
-
-    // UPDATE CUSTOMER
     await Customer.findByIdAndUpdate(
       customer._id,
       {
         totalPurchase: finalPurchase,
-        totalPaid: finalPaid,
-        dueAmount,
-        advanceAmount
+        totalPaid: finalPaid
       }
     );
+
+    await recalcCustomer(customer._id);
 
     res.json({
       message:
@@ -452,34 +484,16 @@ exports.deleteInvoice = async (req, res) => {
         (invoice.paidAmount || 0)
       );
 
-    const recalculatedBalance =
-      Number(customer.manualAdjustment || 0) +
-      (
-        newTotalPurchase -
-        newTotalPaid
-      );
-
-    const newDue =
-      recalculatedBalance > 0
-        ? recalculatedBalance
-        : 0;
-
-    const newAdvance =
-      recalculatedBalance < 0
-        ? Math.abs(recalculatedBalance)
-        : 0;
-
     await Customer.findByIdAndUpdate(
       invoice.customerId,
       {
         totalPurchase: newTotalPurchase,
-
-        totalPaid: newTotalPaid,
-
-        dueAmount: newDue,
-
-        advanceAmount: newAdvance
+        totalPaid: newTotalPaid
       }
+    );
+
+    await recalcCustomer(
+      invoice.customerId
     );
 
 

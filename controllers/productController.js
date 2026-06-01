@@ -1,12 +1,16 @@
 const Product = require("../models/Product");
+const asyncHandler = require("../utils/asyncHandler");
+const AppError = require("../utils/AppError");
 
 // Add Product (ADMIN)
-exports.addProduct = async (req, res) => {
-  try {
+exports.addProduct = asyncHandler(async (req, res) => {
     const { name, rate, discount, stockQty, lowStockAlert } = req.body;
 
     if (!name || !rate || stockQty == null) {
-      return res.status(400).json({ message: "Required fields missing" });
+      throw new AppError(
+        "Required fields missing",
+        400
+      );
     }
 
     const product = await Product.create({
@@ -22,47 +26,43 @@ exports.addProduct = async (req, res) => {
     }
 
     res.status(201).json(product);
-  } catch {
-    res.status(500).json({ message: "Server error" });
-  }
-};
+  });
 
 // UPDATE PRODUCT
-exports.updateProduct = async (req, res) => {
-  try {
+exports.updateProduct =
+  asyncHandler(async (req, res) => {
     const { name, rate, discount, stockQty, addStock, lowStockAlert } = req.body;
-
     let updateData = {
       name,
       rate,
       discount,
       lowStockAlert
-    };
-
+   };
     if (addStock && addStock > 0) {
       updateData.$inc = { stockQty: Number(addStock) };
     } else {
       updateData.stockQty = stockQty;
     }
-
     const product = await Product.findByIdAndUpdate(
       req.params.id,
       updateData,
       { new: true }
     );
-
+    if (!product) {
+      throw new AppError(
+        "Product not found",
+        404
+      );
+    }
     if (global.io) {
       global.io.to(String(req.user.id)).emit("stockUpdated");
     }
 
     res.json(product);
-  } catch {
-    res.status(500).json({ message: "Server error" });
-  }
-};
+  });
+  
 // Get All Products
-exports.getProducts = async (req, res) => {
-  try {
+exports.getProducts =asyncHandler(async (req, res) => {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 20;
     const skip = (page - 1) * limit;
@@ -84,13 +84,9 @@ exports.getProducts = async (req, res) => {
       page,
       totalPages: Math.ceil(total / limit)
     });
-  } catch {
-    res.status(500).json({ message: "Server error" });
-  }
-};
-//  Update Stock
-exports.updateStock = async (req, res) => {
-  try {
+  });
+//  Update Stock 
+  exports.updateStock =asyncHandler(async (req, res) => {
     const { stockQty } = req.body;
 
     const product = await Product.findByIdAndUpdate(
@@ -98,48 +94,51 @@ exports.updateStock = async (req, res) => {
       { stockQty },
       { new: true }
     );
-
-   
-
+    if (!product) {
+      throw new AppError(
+        "Product not found",
+        404
+      );
+    }
     if (global.io) {
       global.io.to(String(req.user.id)).emit("stockUpdated");
     }
 
      res.json(product);
-  } catch {
-    res.status(500).json({ message: "Server error" });
-  }
-};
+  });
 
 //  DELETE PRODUCT (ADMIN)
-exports.deleteProduct = async (req, res) => {
-  try {
-    await Product.findByIdAndDelete(req.params.id);
-    res.json({ message: "Product deleted" });
-  } catch {
-    res.status(500).json({ message: "Server error" });
-  }
-};
+exports.deleteProduct =
+  asyncHandler(async (req, res) => {
+
+    const product =
+      await Product.findByIdAndDelete(
+        req.params.id
+      );
+
+    if (!product) {
+      throw new AppError(
+        "Product not found",
+        404
+      );
+    }
+
+    res.json({
+      message: "Product deleted"
+    });
+
+  });
 
 // LOW STOCK PRODUCTS (DASHBOARD)
-exports.lowStockProducts = async (req, res) => {
-  try {
+   exports.lowStockProducts =asyncHandler(async (req, res) => {
     const products = await Product.find({
       $expr: { $lte: ["$stockQty", "$lowStockAlert"] }
     });
 
     res.json(products);
-  } catch {
-    res.status(500).json({ message: "Server error" });
-  }
-};
+  });
 
-exports.getAllProductsList = async (req, res) => {
-  try {
+   exports.getAllProductsList =asyncHandler(async (req, res) => {
     const products = await Product.find({}, "name rate discount stockQty lowStockAlert");
     res.json({ products });
-  } catch (error) {
-    console.error("GET ALL PRODUCTS LIST ERROR:", error);
-    res.status(500).json({ message: "Server error" });
-  }
-};
+  });

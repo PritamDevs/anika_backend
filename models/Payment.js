@@ -2,8 +2,8 @@ const mongoose = require("mongoose");
 
 const paymentSchema = new mongoose.Schema(
   {
-    customerName: { 
-      type: String, 
+    customerName: {
+      type: String,
       default: ""
     },
     customerId: {
@@ -14,11 +14,12 @@ const paymentSchema = new mongoose.Schema(
     invoiceId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Invoice",
-      required: true
+      required: false,
+      default: null
     },
     gstin: {
       type: String,
-      default: "",   
+      default: "",
     },
     amount: {
       type: Number,
@@ -29,11 +30,24 @@ const paymentSchema = new mongoose.Schema(
       enum: ["payment", "return"],
       required: true
     },
+    customerName: String,
     paymentMode: {
       type: String,
-      enum: ["cash", "upi", "card", "bank"],
+      enum: ["cash", "upi", "card", "bank", "advance"],
       required: true
     },
+    returnedProducts: [
+      {
+        productId: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "Product"
+        },
+
+        productName: String,
+        qty: Number
+      }
+    ],
+
     reference: String,
     date: {
       type: Date,

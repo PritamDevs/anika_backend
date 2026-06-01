@@ -1,12 +1,10 @@
 const Invoice = require("../models/Invoice");
 const Customer = require("../models/Customer");
 const Product = require("../models/Product");
-const Payment = require("../models/Payment");
-
+const asyncHandler = require("../utils/asyncHandler");
 const mongoose = require("mongoose");
 
-exports.getDashboardData = async (req, res) => {
-  try {
+exports.getDashboardData =asyncHandler(async (req, res) => {
     const year = parseInt(req.query.year) || new Date().getFullYear();
     const month = parseInt(req.query.month) || new Date().getMonth() + 1;
 
@@ -84,13 +82,9 @@ exports.getDashboardData = async (req, res) => {
       lowStockProducts
     });
 
-  } catch (error) {
-    console.error("Dashboard Error:", error);
-    res.status(500).json({ message: "Server Error" });
-  }
-};
-exports.getMonthlySalesChart = async (req, res) => {
-  try {
+  });
+  
+exports.getMonthlySalesChart =asyncHandler(async (req, res) => {
     const year = req.query.year || new Date().getFullYear();
 
     const sales = await Invoice.aggregate([
@@ -132,15 +126,10 @@ exports.getMonthlySalesChart = async (req, res) => {
 
     res.status(200).json(formattedData);
 
-  } catch (error) {
-    console.error("Monthly Sales Error:", error);
-    res.status(500).json({ message: "Server Error" });
-  }
-};
+  });
 
 
-exports.getTopCustomers = async (req, res) => {
-  try {
+exports.getTopCustomers =asyncHandler(async (req, res) => {
     const topCustomers = await Invoice.aggregate([
       {
         $group: {
@@ -187,9 +176,5 @@ exports.getTopCustomers = async (req, res) => {
 
     res.status(200).json(topCustomers);
 
-  } catch (error) {
-    console.error("Top Customers Error:", error);
-    res.status(500).json({ message: "Server Error" });
-  }
-};
+  });
 

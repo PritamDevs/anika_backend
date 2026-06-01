@@ -24,7 +24,7 @@ const { scheduleCleanup } = require("./utils/cleanup");
 
 const app = express();
 const server = http.createServer(app);
-
+const errorMiddleware = require("./middleware/errorMiddleware");
 // 🔍 DEBUG: check if env is loading
 console.log("MONGO_URI:", process.env.MONGO_URI);
 
@@ -110,6 +110,15 @@ app.use("/api/dashboard", dashboardRoutes);
 app.get("/", (req, res) => {
   res.send("Anika Enterprises API Running");
 });
+
+app.use((req, res) => {
+  res.status(404).json({
+    success: false,
+    message: "Route not found"
+  });
+});
+
+app.use(errorMiddleware);
 
 // 🚀 SERVER START
 const PORT = process.env.PORT || 5000;

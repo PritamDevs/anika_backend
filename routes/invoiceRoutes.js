@@ -9,7 +9,6 @@ const {
   createInvoice,
   getAllInvoices,
   getInvoiceById,
-  updateInvoice,
   deleteInvoice
 } = require("../controllers/invoiceController");
 
@@ -24,9 +23,7 @@ console.log("DEBUG invoice routes:", {
 router.post("/create", auth, createInvoice);
 router.get("/", auth, getAllInvoices);
 router.get("/:id", auth, getInvoiceById);
-
-router.put("/update/:id", auth, authorize("admin"), updateInvoice);
-router.delete("/delete/:id", auth, authorize("admin"), deleteInvoice);
+// router.delete("/delete/:id", auth, authorize("admin"), deleteInvoice);
 
 
 
