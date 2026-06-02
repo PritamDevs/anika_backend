@@ -138,7 +138,16 @@ exports.deleteProduct =
     res.json(products);
   });
 
-   exports.getAllProductsList =asyncHandler(async (req, res) => {
-    const products = await Product.find({}, "name rate discount stockQty lowStockAlert");
+exports.getAllProductsList =
+  asyncHandler(async (req, res) => {
+
+    const products =
+      await Product.find(
+        {},
+        "name rate discount stockQty lowStockAlert"
+      )
+        .sort({ name: 1 });
+
     res.json({ products });
+
   });

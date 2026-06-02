@@ -14,6 +14,7 @@ const {
   getAllProductsList
 } = require("../controllers/productController");
 
+
 // ADMIN
 router.post("/add", auth, authorize("admin"), addProduct);
 router.put("/stock/:id", auth, authorize("admin"), updateStock);
