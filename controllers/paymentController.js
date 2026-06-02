@@ -3,14 +3,15 @@ const Customer = require("../models/Customer");
 const Invoice = require("../models/Invoice");
 const Product = require("../models/Product");
 const recalcCustomer = require("../utils/recalcCustomer");
-const { calculateCustomerBalance } = require("../utils/customerBalance");
-
+const {calculateReturnAmount} = require( "../utils/accounting/returnCalculator");
+const {createLedgerEntry} = require("../utils/accounting/ledgerService");
 const round2 = (value) =>
   Number(Number(value).toFixed(2));
 
 // ➕ Add Payment / Return
 exports.addPayment = async (req, res) => {
   try {
+    let returnAmount = 0;
     const {
       customerId,
       invoiceId,
@@ -25,7 +26,6 @@ exports.addPayment = async (req, res) => {
 
     if (
       !customerId ||
-      !amount ||
       !type ||
       !paymentMode
     ) {
@@ -34,6 +34,14 @@ exports.addPayment = async (req, res) => {
       });
     }
 
+    if (
+      type === "payment" &&
+      !amount
+    ) {
+      return res.status(400).json({
+        message: "Payment amount required"
+      });
+    }
     const customer =
       await Customer.findById(customerId);
 
@@ -44,14 +52,18 @@ exports.addPayment = async (req, res) => {
     }
 
     const transactionAmount =
-      Number(amount);
+      type === "payment"
+        ? Number(amount)
+        : 0;
 
-    if (transactionAmount <= 0) {
+    if (
+      type === "payment" &&
+      transactionAmount <= 0
+    ) {
       return res.status(400).json({
         message: "Amount must be greater than zero"
       });
     }
-
 
     // =====================================
     // PAYMENT
@@ -102,12 +114,34 @@ exports.addPayment = async (req, res) => {
 
     if (type === "return") {
 
-      const returnAmount = Number(amount);
+      if (paymentMode !== "advance") {
 
-      if (invoiceId) {
+        return res.status(400).json({
+          message:
+            "Returns must be adjusted through advance only"
+        });
 
-        const invoice =
-          await Invoice.findById(invoiceId);
+      }
+
+      if (!invoiceId) {
+        return res.status(400).json({
+          message:
+            "Invoice selection is required for returns"
+        });
+      }
+
+      if (
+        !returnedProducts ||
+        returnedProducts.length === 0
+      ) {
+        return res.status(400).json({
+          message:
+            "Select at least one product to return"
+        });
+      }
+
+      const invoice =
+        await Invoice.findById(invoiceId);
 
         const previousReturns =
           await Payment.find({
@@ -115,19 +149,27 @@ exports.addPayment = async (req, res) => {
             type: "return"
           });
 
-        console.log(
-          "Previous Returns:",
-          previousReturns.map(r => ({
-            id: r._id,
-            products: r.returnedProducts
-          }))
-        );
 
         if (!invoice) {
           return res.status(404).json({
             message: "Invoice not found"
           });
         }
+
+        const result =
+          calculateReturnAmount(
+            invoice,
+            returnedProducts
+          );
+
+        returnAmount =
+          result.returnAmount;
+
+        returnedProducts.splice(
+          0,
+          returnedProducts.length,
+          ...result.enrichedProducts
+        );
 
         for (const returnedItem of returnedProducts) {
 
@@ -142,6 +184,15 @@ exports.addPayment = async (req, res) => {
             return res.status(400).json({
               message:
                 `${returnedItem.productName} was not sold in this invoice`
+            });
+          }
+
+          if (
+            Number(returnedItem.qty) <= 0
+          ) {
+            return res.status(400).json({
+              message:
+                "Return quantity must be greater than zero"
             });
           }
 
@@ -176,20 +227,7 @@ exports.addPayment = async (req, res) => {
             });
           }
         }
-      }
-
-      // Prevent refunding more money than received
-
-      if (
-        (paymentMode === "cash" ||
-          paymentMode === "upi") &&
-        customer.totalPaid < returnAmount
-      ) {
-        return res.status(400).json({
-          message:
-            "Cash return exceeds customer payments"
-        });
-      }
+    
 
       // Increase Stock
 
@@ -216,23 +254,7 @@ exports.addPayment = async (req, res) => {
           )
         );
 
-      // CASH / UPI
 
-      if (
-        paymentMode === "cash" ||
-        paymentMode === "upi"
-      ) {
-
-        customer.totalPaid =
-          round2(
-            Math.max(
-              0,
-              customer.totalPaid -
-              returnAmount
-            )
-          );
-
-      }
 
       await customer.save();
 
@@ -250,7 +272,10 @@ exports.addPayment = async (req, res) => {
         customerId,
         invoiceId: invoiceId || null,
         gstin,
-        amount: transactionAmount,
+        amount:
+          type === "return"
+            ? returnAmount
+            : transactionAmount,
         type,
         paymentMode,
         reference,
@@ -260,6 +285,59 @@ exports.addPayment = async (req, res) => {
         customerName: customer.name,
         returnedProducts
       });
+
+    if (type === "return") {
+
+      await createLedgerEntry({
+        customerId,
+
+        date: payment.date,
+
+        type: "return_advance",
+
+        referenceId:
+          payment._id,
+
+        referenceNumber:
+          reference || "",
+
+        deductedAmount:
+          returnAmount,
+
+        notes:
+          "Return adjusted against due"
+      });
+
+    }
+
+    if (type === "payment") {
+
+      await createLedgerEntry({
+        customerId,
+
+        date: payment.date,
+
+        type:
+          invoiceId
+            ? "invoice_payment"
+            : "payment",
+
+        referenceId:
+          payment._id,
+
+        referenceNumber:
+          reference || "",
+
+        deductedAmount:
+          transactionAmount,
+
+        notes:
+          invoiceId
+            ? "Invoice payment received"
+            : "Payment received"
+      });
+
+    }
 
 
     return res.status(201).json({

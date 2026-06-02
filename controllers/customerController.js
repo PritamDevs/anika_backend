@@ -4,6 +4,7 @@ const Payment = require("../models/Payment");
 const asyncHandler = require("../utils/asyncHandler");
 const recalcCustomer =require("../utils/recalcCustomer");
 const AppError = require("../utils/AppError");
+const LedgerEntry =require("../utils/accounting/LedgerEntry");
 
 // CREATE CUSTOMER
 exports.createCustomer =
@@ -193,6 +194,10 @@ exports.getCustomerDetails = asyncHandler(async (req, res) => {
       Invoice.find({
         customerId: customer._id
       })
+        .populate(
+          "products.productId",
+          "name"
+        )
         .sort({ createdAt: 1 })
         .lean(),
 
@@ -220,242 +225,53 @@ exports.getCustomerDetails = asyncHandler(async (req, res) => {
 
     ]);
 
-  const ledgerEntries = [];
+  const ledger =
+    await LedgerEntry.find({
+      customerId: customer._id
+    })
+      .sort({
+        createdAt: 1
+      })
+      .lean();
 
-  if ((customer.openingBalance || 0) !== 0) {
+  const formattedLedger =
+    ledger.map(entry => ({
+      date: entry.date,
 
-    ledgerEntries.push({
-      date: customer.createdAt,
-
-      type: "Opening Balance",
-
-      reference: "Migrated Balance",
-
-      debit:
-        customer.openingBalance > 0
-          ? Number(customer.openingBalance)
-          : 0,
-
-      credit:
-        customer.openingBalance < 0
-          ? Math.abs(
-            Number(customer.openingBalance)
-          )
-          : 0
-    });
-
-  }
-
-  invoices.forEach(invoice => {
-
-    ledgerEntries.push({
-      date: invoice.date,
-      type: "Invoice",
-      reference: invoice.invoiceNumber,
-
-      debit: Number(invoice.totalAmount || 0),
-      credit: 0
-    });
-
-
-    // Payment received during invoice creation
-
-    if (Number(invoice.paidAmount || 0) > 0) {
-
-      ledgerEntries.push({
-        date: invoice.date,
-
-        type: "Invoice Payment",
-
-        reference: invoice.invoiceNumber,
-
-        debit: 0,
-
-        credit: Number(invoice.paidAmount || 0)
-      });
-    }
-
-    // Advance used
-
-    if (Number(invoice.advanceUsed || 0) > 0) {
-
-      ledgerEntries.push({
-        date: invoice.date,
-
-        type: "Advance Used",
-
-        reference: invoice.invoiceNumber,
-
-        debit: 0,
-        credit: 0,
-
-        amount: Number(invoice.advanceUsed)
-      });
-    }
-
-  });
-
-  payments.forEach(payment => {
-
-    ledgerEntries.push({
-      date: payment.date,
-
-      type:
-        payment.paymentMode === "advance"
-          ? "Advance Received"
-          : "Payment",
+      type: {
+        opening_balance: "Opening Balance",
+        invoice: "Invoice",
+        invoice_payment: "Invoice Payment",
+        payment: "Payment",
+        return_advance: "Return (Advance)",
+        return_cash: "Return (Cash)"
+      }[entry.type] || entry.type,
 
       reference:
-        payment.invoiceId?.invoiceNumber ||
-        payment.reference ||
-        "-",
-
-      debit: 0,
-
-      credit:
-        Number(payment.amount || 0)
-    });
-
-  });
-
-  returns.forEach(ret => {
-
-    ledgerEntries.push({
-      date: ret.date,
-
-      type:
-        ret.paymentMode === "advance"
-          ? "Return (Advance)"
-          : "Return (Cash)",
-
-      reference:
-        ret.invoiceId?.invoiceNumber ||
-        ret.reference ||
-        "-",
+        entry.referenceNumber || "-",
 
       debit:
-        ret.paymentMode === "cash" ||
-          ret.paymentMode === "upi"
-          ? Number(ret.amount || 0)
-          : 0,
+        entry.addedAmount || 0,
 
       credit:
-        ret.paymentMode === "advance"
-          ? Number(ret.amount || 0)
-          : 0
-    });
-
-  });
-
-  ledgerEntries.sort((a, b) => {
-
-    const dateDiff =
-      new Date(a.date) - new Date(b.date);
-
-    if (dateDiff !== 0)
-      return dateDiff;
-
-    const order = {
-      "Opening Balance": 0,
-      Invoice: 1,
-      "Invoice Payment": 2,
-      "Advance Used": 3,
-      Payment: 4,
-      "Return (Cash)": 5,
-      "Return (Advance)": 5,
-      "Advance Received": 6
-    };
-
-    return (
-      (order[a.type] || 99) -
-      (order[b.type] || 99)
-    );
-
-  });
-
-
-  let runningPurchase = 0;
-  let runningPaid = 0;
-
-  const openingBalance =
-    Number(customer.openingBalance || 0);
-
-  const ledger = ledgerEntries.map(entry => {
-
-    switch (entry.type) {
-
-      case "Opening Balance":
-
-        if (openingBalance < 0) {
-          runningPaid +=
-            Math.abs(openingBalance);
-        }
-
-        break;
-
-      case "Invoice":
-        runningPurchase +=
-          Number(entry.debit || 0);
-        break;
-
-      case "Invoice Payment":
-      case "Payment":
-      case "Advance Received":
-        runningPaid +=
-          Number(entry.credit || 0);
-        break;
-
-      case "Return (Advance)":
-        runningPurchase -=
-          Number(entry.credit || 0);
-        break;
-
-      case "Return (Cash)":
-        runningPurchase -=
-          Number(entry.debit || 0);
-
-        runningPaid -=
-          Number(entry.debit || 0);
-        break;
-
-      default:
-        break;
-    }
-
-    const balance =
-      Number(
-        (
-          runningPaid
-          -
-          runningPurchase
-          -
-          openingBalance
-        ).toFixed(2)
-      );
-
-    return {
-      ...entry,
+        entry.deductedAmount || 0,
 
       due:
-        balance < 0
-          ? Math.abs(balance)
-          : 0,
+        entry.runningDue || 0,
 
       advance:
-        balance > 0
-          ? balance
-          : 0
-    };
-  });
+        entry.runningAdvance || 0,
 
-  ledger.reverse();
+      notes:
+        entry.notes || ""
+    }));
 
   res.json({
     customer,
     invoices,
     payments,
     returns,
-    ledger
+    ledger: formattedLedger
   });
 
 
@@ -486,6 +302,40 @@ exports.updateOpeningBalance =
     await recalcCustomer(
       customer._id
     );
+
+    const {
+      createLedgerEntry
+    } = require(
+      "../utils/accounting/ledgerService"
+    );
+
+    await createLedgerEntry({
+      customerId: customer._id,
+
+      date: new Date(),
+
+      type: "opening_balance",
+
+      referenceId: customer._id,
+
+      referenceNumber:
+        "Opening Balance",
+
+      addedAmount:
+        openingBalance > 0
+          ? openingBalance
+          : 0,
+
+      deductedAmount:
+        openingBalance < 0
+          ? Math.abs(
+            openingBalance
+          )
+          : 0,
+
+      notes:
+        "Opening balance set"
+    });
 
     res.json({
       message:

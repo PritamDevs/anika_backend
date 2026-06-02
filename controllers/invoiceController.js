@@ -4,7 +4,7 @@ const Product = require("../models/Product");
 const asyncHandler =require("../utils/asyncHandler");
 const recalcCustomer =require("../utils/recalcCustomer");
 const AppError =require("../utils/AppError");
-
+const {createLedgerEntry} = require("../utils/accounting/ledgerService");
 
 const round2 = (value) => Number(Number(value).toFixed(2));
 // const {calculateCustomerBalance} = require("../utils/customerBalance");
@@ -212,18 +212,21 @@ exports.createInvoice =asyncHandler(async (req, res) => {
         Math.max(runningBalance, 0)
       );
 
-    const invoice = await Invoice.create({
-      invoiceNumber,
-      customerId,
-      customerName: customer.name,
-      products,
-      totalAmount: total,
-      paidAmount: paid,
-      previousAmount: previous,
-      advanceUsed,
-      totalDueAmount,
-      createdBy: req.user.id
-    });
+  const invoice = await Invoice.create({
+    invoiceNumber,
+    customerId,
+    customerName: customer.name,
+    products,
+    totalAmount: total,
+
+    paidAmount: paid,
+    initialPaidAmount: paid,
+
+    previousAmount: previous,
+    advanceUsed,
+    totalDueAmount,
+    createdBy: req.user.id
+  });
 
     const newTotalPurchase =
       round2(
@@ -247,6 +250,56 @@ Customer balance after invoice
   );
 
   await recalcCustomer(customerId);
+
+  await createLedgerEntry({
+    customerId:
+      customer._id,
+
+    date:
+      invoice.date,
+
+    type:
+      "invoice",
+
+    referenceId:
+      invoice._id,
+
+    referenceNumber:
+      invoice.invoiceNumber,
+
+    addedAmount:
+      invoice.totalAmount,
+
+    notes:
+      "Purchase added"
+  });
+
+  if (paid > 0) {
+
+    await createLedgerEntry({
+      customerId:
+        customer._id,
+
+      date:
+        invoice.date,
+
+      type:
+        "invoice_payment",
+
+      referenceId:
+        invoice._id,
+
+      referenceNumber:
+        invoice.invoiceNumber,
+
+      deductedAmount:
+        paid,
+
+      notes:
+        "Payment received during invoice creation"
+    });
+
+  }
 
     const populatedInvoice = await Invoice.findById(invoice._id)
       .populate("customerId", "name contact address")

@@ -30,7 +30,6 @@ const paymentSchema = new mongoose.Schema(
       enum: ["payment", "return"],
       required: true
     },
-    customerName: String,
     paymentMode: {
       type: String,
       enum: ["cash", "upi", "card", "bank", "advance"],
@@ -44,7 +43,9 @@ const paymentSchema = new mongoose.Schema(
         },
 
         productName: String,
-        qty: Number
+        qty: Number,
+        rate: Number,
+        amount: Number
       }
     ],
 
