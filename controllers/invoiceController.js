@@ -1,6 +1,8 @@
 const Invoice = require("../models/Invoice");
 const Customer = require("../models/Customer");
 const Product = require("../models/Product");
+const Payment = require("../models/Payment");
+const LedgerEntry = require("../utils/accounting/LedgerEntry");
 const asyncHandler =require("../utils/asyncHandler");
 const recalcCustomer =require("../utils/recalcCustomer");
 const AppError =require("../utils/AppError");
@@ -16,10 +18,11 @@ const generateInvoiceNumber = async () => {
 
   const now = new Date();
   const month = String(now.getMonth() + 1).padStart(2, "0"); // 01-12
+  const year = String(now.getFullYear()).slice(-2);
 
   // Find last invoice of current month
   const lastInvoice = await Invoice.findOne({
-    invoiceNumber: { $regex: `^${orgCode}${month}-` }
+    invoiceNumber: { $regex: `^${orgCode}${year}${month}-` }
   })
     .sort({ createdAt: -1 })
     .select("invoiceNumber");
@@ -33,7 +36,7 @@ const generateInvoiceNumber = async () => {
 
   const seqStr = String(nextSeq).padStart(4, "0");
 
-  return `${orgCode}${month}-${seqStr}`;
+  return `${orgCode}${year}${month}-${seqStr}`;
 };
 
 
@@ -147,6 +150,8 @@ exports.createInvoice =asyncHandler(async (req, res) => {
       const price = Number(product.rate) || 0;
       const qty = item.qty;
       const discount = Number(item.discount) || 0;
+      
+      item.rate = price;
 
       const gross = price * qty;
       const discountAmount = (gross * discount) / 100;
@@ -299,6 +304,15 @@ Customer balance after invoice
         "Payment received during invoice creation"
     });
 
+    await Payment.create({
+      customerId: customer._id,
+      invoiceId: invoice._id,
+      amount: paid,
+      type: "payment",
+      paymentMode: "cash",
+      date: invoice.date
+    });
+
   }
 
     const populatedInvoice = await Invoice.findById(invoice._id)
@@ -360,148 +374,142 @@ exports.getInvoiceById = async (req, res) => {
 /* =========================
    UPDATE INVOICE (ADMIN)
 ========================= */
-exports.updateInvoice = async (req, res) => {
-
-  try {
-
+exports.updateInvoice = asyncHandler(async (req, res) => {
     const invoiceId = req.params.id;
+    const { products, paidAmount = 0, advanceUsed = 0 } = req.body;
 
-    const {
-      products,
-      paidAmount = 0,
-      previousAmount = 0,
-      advanceUsed = 0
-    } = req.body;
-
-    // OLD INVOICE
-    const oldInvoice =
-      await Invoice.findById(invoiceId);
-
+    const oldInvoice = await Invoice.findById(invoiceId);
     if (!oldInvoice) {
-      return res.status(404).json({
-        message: "Invoice not found"
-      });
+      throw new AppError("Invoice not found", 404);
     }
 
-    // CUSTOMER
-    const customer =
-      await Customer.findById(
-        oldInvoice.customerId
-      );
-
+    const customer = await Customer.findById(oldInvoice.customerId);
     if (!customer) {
-      return res.status(404).json({
-        message: "Customer not found"
+      throw new AppError("Customer not found", 404);
+    }
+
+    // 1. RESTORE OLD STOCK
+    for (const item of oldInvoice.products) {
+      await Product.findByIdAndUpdate(item.productId, {
+        $inc: { stockQty: item.qty }
       });
     }
 
-    // REMOVE OLD EFFECT
-    const revertedPurchase =
-      round2(
-        customer.totalPurchase -
-        oldInvoice.totalAmount
-      );
+    // 2. DEDUCT NEW STOCK & CALCULATE NEW TOTAL
+    const productIds = products.map(p => p.productId);
+    const productDocs = await Product.find({ _id: { $in: productIds } });
+    const productMap = {};
+    productDocs.forEach(p => { productMap[p._id.toString()] = p; });
 
-    const revertedPaid =
-      round2(
-        customer.totalPaid -
-        oldInvoice.paidAmount
-      );
+    const grouped = {};
+    products.forEach(item => {
+      const id = item.productId.toString();
+      if (!grouped[id]) grouped[id] = 0;
+      grouped[id] += Number(item.qty);
+    });
 
-    // RECALCULATE TOTAL
-    const total =
-      round2(
-        products.reduce(
-          (sum, item) =>
-            sum +
-            (
-              item.qty *
-              item.rate
-            ),
-          0
-        )
-      );
+    for (const productId in grouped) {
+      const product = productMap[productId];
+      if (!product) throw new AppError("Invalid product", 404);
+      if (grouped[productId] > product.stockQty) {
+        throw new AppError(`Only ${product.stockQty} units available for ${product.name}`, 400);
+      }
+    }
 
-    // NEW DUE
-    // NEW DUE
-    const adjustedTotal =
-      round2(
-        total - advanceUsed
+    for (const productId in grouped) {
+      const qty = grouped[productId];
+      await Product.findOneAndUpdate(
+        { _id: productId, stockQty: { $gte: qty } },
+        { $inc: { stockQty: -qty } },
+        { new: true }
       );
+    }
 
-    const runningBalance =
-      round2(
-        previousAmount +
-        adjustedTotal -
-        paidAmount
-      );
+    let calculatedTotal = 0;
+    for (const item of products) {
+      const product = productMap[item.productId.toString()];
+      const price = Number(product.rate) || 0;
+      const qty = item.qty;
+      const discount = Number(item.discount) || 0;
+      item.rate = price;
+      const gross = price * qty;
+      const discountAmount = (gross * discount) / 100;
+      calculatedTotal += gross - discountAmount;
+    }
 
-    const totalDueAmount =
-      round2(
-        Math.max(
-          runningBalance,
-          0
-        )
-      );
+    // 3. REVERT OLD CUSTOMER BALANCE
+    const revertedPurchase = round2(customer.totalPurchase - oldInvoice.totalAmount);
+    const revertedPaid = round2(customer.totalPaid - oldInvoice.paidAmount);
 
-    // UPDATE INVOICE
-    const updatedInvoice =
-      await Invoice.findByIdAndUpdate(
+    const total = round2(calculatedTotal);
+    const paid = round2(paidAmount);
+    const previous = oldInvoice.previousAmount;
+    
+    const actualAdvanceUsed = round2(Math.min(customer.advanceAmount + oldInvoice.advanceUsed, total));
+    
+    const adjustedTotal = round2(total - actualAdvanceUsed);
+    const runningBalance = round2(previous + adjustedTotal - paid);
+    const totalDueAmount = round2(Math.max(runningBalance, 0));
+
+    // Update invoice
+    const updatedInvoice = await Invoice.findByIdAndUpdate(
         invoiceId,
         {
           products,
           totalAmount: total,
-          paidAmount,
-          previousAmount,
-          advanceUsed,
+          paidAmount: paid,
+          advanceUsed: actualAdvanceUsed,
           totalDueAmount
         },
         { new: true }
-      );
+    );
 
-    // APPLY NEW EFFECT
-    const finalPurchase =
-      round2(
-        revertedPurchase + total
-      );
+    const finalPurchase = round2(revertedPurchase + total);
+    const finalPaid = round2(revertedPaid + paid);
 
-    const finalPaid =
-      round2(
-        revertedPaid + paidAmount
-      );
-
-    // CALCULATE BALANCE
-    // CALCULATE BALANCE
-    await Customer.findByIdAndUpdate(
-      customer._id,
-      {
+    await Customer.findByIdAndUpdate(customer._id, {
         totalPurchase: finalPurchase,
         totalPaid: finalPaid
-      }
-    );
-
+    });
     await recalcCustomer(customer._id);
+    
+    // 4. Update Ledger Entries and Payment
+    await LedgerEntry.deleteMany({ referenceId: invoiceId });
+    await Payment.deleteMany({ invoiceId: invoiceId });
 
-    res.json({
-      message:
-        "Invoice updated successfully",
-
-      invoice: updatedInvoice
+    await createLedgerEntry({
+      customerId: customer._id,
+      date: updatedInvoice.date,
+      type: "invoice",
+      referenceId: updatedInvoice._id,
+      referenceNumber: updatedInvoice.invoiceNumber,
+      addedAmount: updatedInvoice.totalAmount,
+      notes: "Purchase added (Updated)"
     });
 
-  } catch (error) {
+    if (paid > 0) {
+      await createLedgerEntry({
+        customerId: customer._id,
+        date: updatedInvoice.date,
+        type: "invoice_payment",
+        referenceId: updatedInvoice._id,
+        referenceNumber: updatedInvoice.invoiceNumber,
+        deductedAmount: paid,
+        notes: "Payment received (Updated)"
+      });
 
-    console.error(
-      "UPDATE INVOICE ERROR:",
-      error
-    );
+      await Payment.create({
+        customerId: customer._id,
+        invoiceId: updatedInvoice._id,
+        amount: paid,
+        type: "payment",
+        paymentMode: "cash",
+        date: updatedInvoice.date
+      });
+    }
 
-    res.status(500).json({
-      message: "Server error"
-    });
-
-  }
-};
+    res.json({ message: "Invoice updated successfully", invoice: updatedInvoice });
+});
 
 /* =========================
    DELETE INVOICE (ADMIN)
@@ -549,6 +557,8 @@ exports.deleteInvoice = async (req, res) => {
       invoice.customerId
     );
 
+    await LedgerEntry.deleteMany({ referenceId: invoiceId });
+    await Payment.deleteMany({ invoiceId: invoiceId });
 
     //  Delete invoice
     await Invoice.findByIdAndDelete(invoiceId);

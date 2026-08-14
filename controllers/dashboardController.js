@@ -17,8 +17,7 @@ exports.getDashboardData =asyncHandler(async (req, res) => {
     const salesAgg = await Invoice.aggregate([
       {
         $match: {
-          createdAt: { $gte: startOfMonth, $lte: endOfMonth },
-          createdBy: userId
+          createdAt: { $gte: startOfMonth, $lte: endOfMonth }
         }
       },
       { $group: { _id: null, total: { $sum: "$totalAmount" } } }
@@ -29,8 +28,7 @@ exports.getDashboardData =asyncHandler(async (req, res) => {
     const outstandingAgg = await Invoice.aggregate([
       {
         $match: {
-          createdAt: { $gte: startOfMonth, $lte: endOfMonth },
-          createdBy: userId
+          createdAt: { $gte: startOfMonth, $lte: endOfMonth }
         }
       },
       { $group: { _id: null, total: { $sum: "$totalDueAmount" } } }
@@ -40,7 +38,6 @@ exports.getDashboardData =asyncHandler(async (req, res) => {
     const totalOutstandingAgg = await Customer.aggregate([
       {
         $match: {
-          user: userId,
           isActive: true
         }
       },
@@ -56,15 +53,13 @@ exports.getDashboardData =asyncHandler(async (req, res) => {
 
     // ✅ Total Customers (overall, unchanged)
     const totalCustomers = await Customer.countDocuments({
-      isActive: true,
-      user: req.user.id
+      isActive: true
     });
 
     // ✅ Open invoices this month
     const openInvoices = await Invoice.countDocuments({
       totalDueAmount: { $gt: 0 },
-      createdAt: { $gte: startOfMonth, $lte: endOfMonth },
-      createdBy: req.user.id
+      createdAt: { $gte: startOfMonth, $lte: endOfMonth }
     });
 
     // ✅ Low stock (unchanged)

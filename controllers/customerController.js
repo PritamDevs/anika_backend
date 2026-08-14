@@ -29,8 +29,7 @@ exports.createCustomer =
     if (contact && contact.trim() !== "") {
       customer = await Customer.findOneAndUpdate(
         {
-          contact: contact,
-          user: req.user.id
+          contact: contact
         },
         {
           $setOnInsert: {
@@ -86,7 +85,6 @@ exports.getAllCustomers =asyncHandler(async (req, res) => {
 
     const query = {
       isActive: true,
-      user: req.user.id,
       ...(search && { name: { $regex: search, $options: "i" } })
     };
 
@@ -165,7 +163,7 @@ exports.deleteCustomer = asyncHandler(async (req, res) => {
 exports.getAllCustomersList = asyncHandler(async (req, res) => {
 
     const customers = await Customer.find(
-      { user: req.user.id, isActive: true },
+      { isActive: true },
       "name contact address dueAmount advanceAmount totalPurchase totalPaid openingBalance"
     ).sort({ name: 1 }).collation({ locale: "en", strength: 2 });
 
@@ -177,7 +175,6 @@ exports.getAllCustomersList = asyncHandler(async (req, res) => {
 exports.getCustomerDetails = asyncHandler(async (req, res) => {
   const customer = await Customer.findOne({
     _id: req.params.id,
-    user: req.user.id,
     isActive: true
   }).lean();
 

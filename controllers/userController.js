@@ -1,7 +1,8 @@
 const User = require("../models/user");
 const bcrypt = require("bcryptjs");
+const asyncHandler = require("../utils/asyncHandler");
 
-exports.createEmployee = async (req, res) => {
+exports.createEmployee = asyncHandler(async (req, res) => {
   const { name, employeeId, password } = req.body;
 
   const exists = await User.findOne({ employeeId });
@@ -18,4 +19,4 @@ exports.createEmployee = async (req, res) => {
   });
 
   res.json({ message: "Employee created", employee });
-};
+});

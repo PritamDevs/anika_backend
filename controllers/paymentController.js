@@ -245,6 +245,12 @@ exports.addPayment = async (req, res) => {
         );
       }
 
+      // Update Invoice
+      invoice.totalAmount = round2(Math.max(0, invoice.totalAmount - returnAmount));
+      // Re-calculate running balance for the invoice
+      invoice.totalDueAmount = round2(Math.max(0, invoice.totalAmount - (invoice.paidAmount || 0)));
+      await invoice.save();
+
       customer.totalPurchase =
         round2(
           Math.max(
